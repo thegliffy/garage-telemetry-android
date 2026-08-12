@@ -9,7 +9,21 @@ package com.garagepi.telemetry.obd
  * its decoders.
  */
 object IoniqUds {
-    data class UdsQuery(val header: String, val requestHex: String, val decode: (ByteArray) -> Map<String, Double>)
+    /**
+     * @param calibrating true for queries we poll only to capture raw frames in logcat,
+     *   because the byte offsets are not derived yet. They contribute no readings.
+     * @param everyNCycles poll divisor. Each query costs a round trip (~0.4 s), so polling
+     *   slow-moving values (SOH, aux SOC, odometer) on every cycle throttles the sample
+     *   rate of the fast ones — voltage, current, power — which is what makes the history
+     *   charts look coarse.
+     */
+    data class UdsQuery(
+        val header: String,
+        val requestHex: String,
+        val decode: (ByteArray) -> Map<String, Double>,
+        val calibrating: Boolean = false,
+        val everyNCycles: Int = 1,
+    )
 
     private fun u8(d: ByteArray, i: Int): Int = d[i].toInt() and 0xFF
     private fun s8(d: ByteArray, i: Int): Int {
@@ -44,7 +58,20 @@ object IoniqUds {
     private fun round1(v: Double) = kotlin.math.round(v * 10) / 10.0
     private fun round2(v: Double) = kotlin.math.round(v * 100) / 100.0
 
-    /** BMS snapshot (header 7E4): SOC, current, voltage, power, temps. */
+    /**
+     * BMS snapshot (header 7E4): SOC, current, voltage, power, temps.
+     *
+     * Sign convention: **positive = discharge** (power leaving the battery),
+     * **negative = charge/regen**. The dashboard shows the magnitude and conveys
+     * direction with colour rather than a minus sign.
+     *
+     * NOT negated, despite a report that power reads inverted. The one capture we have
+     * with a known vehicle state — parked in READY, so the pack must be discharging to
+     * run the DC-DC and electronics — decodes to +1.2 A / +0.86 kW, which is already
+     * discharge-positive. Flipping it would make that known-good case read as charging.
+     * Confirm on the road instead: braking/regen and plugged-in charging must both show
+     * green, acceleration red. If they do not, negate here and in decode_capture.py.
+     */
     fun decode220101(data: ByteArray): Map<String, Double> {
         if (data.size < 20) return emptyMap()
         val hvSoc = u8(data, E) / 2.0
@@ -91,9 +118,32 @@ object IoniqUds {
         return mapOf("AUX_SOC" to u8(data, W).toDouble())
     }
 
+    /**
+     * VMCU (header 7E2). Polled purely to capture raw frames for now: the Ioniq 5 does
+     * not answer standard Mode 01 `010D`, so vehicle speed has to come from here, but the
+     * byte offset is not known yet and guessing one is how the 220105 display-SOC decode
+     * went wrong. Drive at a known steady speed, capture, then run
+     * `tools/decode_capture.py --find-speed <kmh>` to derive the offset from real data.
+     */
+    fun decodeVmcuCalibration(@Suppress("UNUSED_PARAMETER") data: ByteArray): Map<String, Double> = emptyMap()
+
+    /**
+     * Cluster (header 7C6). Source of the odometer, which gives exact trip distance as an
+     * end-minus-start delta — no GPS permission and none of the drift you get integrating a
+     * ~2 s speed sample. Offsets not derived yet: read the dash odometer during a capture
+     * and run `tools/decode_capture.py --find-odometer <value>`.
+     */
+    fun decodeClusterCalibration(@Suppress("UNUSED_PARAMETER") data: ByteArray): Map<String, Double> = emptyMap()
+
     val QUERIES: List<UdsQuery> = listOf(
+        // Fast-moving: every cycle, so the history charts have real resolution.
         UdsQuery("7E4", "220101", ::decode220101),
-        UdsQuery("7E4", "220105", ::decode220105),
-        UdsQuery("7E5", "22E011", ::decode22E011),
+        // Slow-moving: SOH and display SOC barely move within a drive.
+        UdsQuery("7E4", "220105", ::decode220105, everyNCycles = 10),
+        UdsQuery("7E5", "22E011", ::decode22E011, everyNCycles = 10),
+        // Calibration captures. Odometer only needs to be seen occasionally; speed needs
+        // to be frequent enough to correlate against a steady indicated speed.
+        UdsQuery("7E2", "22E004", ::decodeVmcuCalibration, calibrating = true, everyNCycles = 3),
+        UdsQuery("7C6", "22B002", ::decodeClusterCalibration, calibrating = true, everyNCycles = 10),
     )
 }

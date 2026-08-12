@@ -36,16 +36,20 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.garagepi.telemetry.obd.TelemetryField
 import com.garagepi.telemetry.obd.TelemetryFields
+import com.garagepi.telemetry.service.ConnectionState
+import com.garagepi.telemetry.ui.theme.ChargeGreen
+import com.garagepi.telemetry.ui.theme.DischargeRed
+import kotlin.math.abs
 
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    var hasBluetoothPermission by remember { mutableStateOf(hasConnectPermission(context)) }
+    var hasBluetoothPermission by remember { mutableStateOf(missingPermissions(context).isEmpty()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission(),
-    ) { granted -> hasBluetoothPermission = granted }
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { hasBluetoothPermission = missingPermissions(context).isEmpty() }
 
     Column(
         modifier = Modifier
@@ -58,7 +62,7 @@ fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
         ConnectionControls(
             state = uiState.connectionState,
             hasPermission = hasBluetoothPermission,
-            onRequestPermission = { permissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT) },
+            onRequestPermission = { permissionLauncher.launch(missingPermissions(context).toTypedArray()) },
             pairedDevices = { viewModel.pairedDevices() },
             onConnect = viewModel::connect,
             onDisconnect = viewModel::disconnect,
@@ -129,6 +133,17 @@ private fun ConnectionControls(
 
 @Composable
 private fun StatCard(field: TelemetryField, value: Double?) {
+    // Signed flow fields show magnitude only; direction is carried by colour and a
+    // word, which is far quicker to read at a glance than spotting a minus sign.
+    val charging = field.signedFlow && value != null && value < 0
+    val discharging = field.signedFlow && value != null && value > 0
+    val valueColor = when {
+        discharging -> DischargeRed
+        charging -> ChargeGreen
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+    val shown = value?.let { if (field.signedFlow) abs(it) else it }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -136,16 +151,35 @@ private fun StatCard(field: TelemetryField, value: Double?) {
         ) {
             Text(text = field.label, style = MaterialTheme.typography.labelSmall)
             Text(
-                text = value?.let { "%.1f".format(it) } ?: "--",
+                text = shown?.let { "%.1f".format(it) } ?: "--",
                 style = MaterialTheme.typography.headlineMedium,
+                color = valueColor,
             )
-            Text(text = field.unit, style = MaterialTheme.typography.labelSmall)
+            Text(
+                text = when {
+                    discharging -> "${field.unit} · discharging"
+                    charging -> "${field.unit} · charging"
+                    else -> field.unit
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = valueColor,
+            )
         }
     }
 }
 
-private fun hasConnectPermission(context: android.content.Context): Boolean {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-    return ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) ==
-        android.content.pm.PackageManager.PERMISSION_GRANTED
+/**
+ * Runtime permissions still needed before logging can start: BLUETOOTH_CONNECT on API 31+,
+ * and POST_NOTIFICATIONS on API 33+ (the foreground service cannot show its required
+ * ongoing notification without it).
+ */
+private fun missingPermissions(context: android.content.Context): List<String> {
+    val required = buildList {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(Manifest.permission.BLUETOOTH_CONNECT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+    }
+    return required.filter {
+        ContextCompat.checkSelfPermission(context, it) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
 }

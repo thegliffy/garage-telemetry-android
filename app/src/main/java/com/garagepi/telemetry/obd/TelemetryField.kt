@@ -8,7 +8,17 @@ package com.garagepi.telemetry.obd
  * ioniq_mode22.py already emits ("HV_SOC_DISPLAY", "PACK_VOLTAGE_V", ...),
  * reused as-is rather than inventing a second convention for one car.
  */
-data class TelemetryField(val pid: String, val label: String, val unit: String)
+/**
+ * @param signedFlow true for values whose sign means direction of energy flow. These are
+ *   shown as a magnitude and coloured instead — red for positive (discharge), green for
+ *   negative (charge/regen) — so a driver reads the number, not a minus sign.
+ */
+data class TelemetryField(
+    val pid: String,
+    val label: String,
+    val unit: String,
+    val signedFlow: Boolean = false,
+)
 
 object TelemetryFields {
     val SPEED = TelemetryField("010D", "Speed", "km/h")
@@ -18,13 +28,36 @@ object TelemetryFields {
     // unresolved byte-offset question in 220105 (see IoniqUds.decode220105).
     val HV_SOC = TelemetryField("HV_SOC", "HV Battery", "%")
     val PACK_VOLTAGE = TelemetryField("PACK_VOLTAGE_V", "Pack Voltage", "V")
-    val PACK_POWER = TelemetryField("PACK_POWER_KW", "Pack Power", "kW")
+    val PACK_POWER = TelemetryField("PACK_POWER_KW", "Pack Power", "kW", signedFlow = true)
+    val PACK_CURRENT = TelemetryField("PACK_CURRENT_A", "Pack Current", "A", signedFlow = true)
     val BATT_TEMP = TelemetryField("BATT_TEMP_MAX_C", "Battery Temp", "°C")
     val AUX_SOC = TelemetryField("AUX_SOC", "12V Aux Battery", "%")
 
-    val DASHBOARD_FIELDS: List<TelemetryField> = listOf(SPEED, HV_SOC, PACK_VOLTAGE, PACK_POWER, BATT_TEMP, AUX_SOC)
+    /** Populated only once calibrated in-app; unit is whatever the dash shows. */
+    val ODOMETER = TelemetryField("ODOMETER", "Odometer", "")
+    val BATT_TEMP_MIN = TelemetryField("BATT_TEMP_MIN_C", "Battery Temp (min)", "°C")
+    val AUX_VOLTAGE = TelemetryField("AUX_VOLTAGE_V", "12V Aux Voltage", "V")
+    val HV_SOH = TelemetryField("HV_SOH", "Battery Health", "%")
 
-    private val byPid = DASHBOARD_FIELDS.associateBy { it.pid }
+    // SPEED is intentionally absent until the VMCU offset is calibrated — the car does not
+    // answer 010D, so including it would only render a permanently blank card.
+    val DASHBOARD_FIELDS: List<TelemetryField> =
+        listOf(HV_SOC, PACK_POWER, PACK_CURRENT, PACK_VOLTAGE, BATT_TEMP, AUX_SOC)
+
+    /** Everything worth graphing over a drive — a superset of the dashboard tiles. */
+    val CHART_FIELDS: List<TelemetryField> = listOf(
+        HV_SOC,
+        PACK_POWER,
+        PACK_CURRENT,
+        PACK_VOLTAGE,
+        BATT_TEMP,
+        BATT_TEMP_MIN,
+        AUX_SOC,
+        AUX_VOLTAGE,
+        HV_SOH,
+    )
+
+    private val byPid = CHART_FIELDS.associateBy { it.pid }
 
     fun labelFor(pid: String): String = byPid[pid]?.label ?: pid
     fun unitFor(pid: String): String = byPid[pid]?.unit ?: ""

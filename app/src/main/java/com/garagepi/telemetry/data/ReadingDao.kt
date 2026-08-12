@@ -24,4 +24,15 @@ interface ReadingDao {
 
     @Query("SELECT COUNT(*) FROM readings WHERE tripSessionId = :tripId AND uploaded = 0")
     suspend fun countUnuploaded(tripId: Long): Int
+
+    /**
+     * Timestamp of the newest reading in a session, or null if it has none.
+     * Used by the stale-session reaper to date an orphaned session from when it
+     * actually stopped recording rather than from when the reaper happened to run.
+     */
+    @Query("SELECT MAX(ts) FROM readings WHERE tripSessionId = :tripId")
+    suspend fun maxTsForTrip(tripId: Long): Long?
+
+    @Query("SELECT COUNT(*) FROM readings")
+    suspend fun countAll(): Int
 }

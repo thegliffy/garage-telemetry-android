@@ -5,6 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
 import com.garagepi.telemetry.data.ReadingEntity
+import com.garagepi.telemetry.data.SessionReaper
 import com.garagepi.telemetry.data.TelemetryDatabase
 import com.garagepi.telemetry.data.TripSessionEntity
 import java.time.Instant
@@ -18,11 +19,16 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
 
     override suspend fun doWork(): Result {
         val settings = AppSettings(applicationContext)
-        if (settings.baseUrl.isBlank() || settings.apiKey.isBlank()) {
+        val db = TelemetryDatabase.get(applicationContext)
+
+        // Independent of sync config: an orphaned session must get an endedAt or it is
+        // returned by getPendingSync forever and never closed upstream.
+        SessionReaper.reap(db)
+
+        if (!settings.syncConfigured) {
             return Result.success()
         }
 
-        val db = TelemetryDatabase.get(applicationContext)
         val client = GarageApiClient(settings.baseUrl, settings.apiKey)
 
         var hadFailure = false

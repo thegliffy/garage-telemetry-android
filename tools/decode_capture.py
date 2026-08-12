@@ -73,6 +73,96 @@ def s8(d: list[int], i: int) -> int:
     return d[i] - 256 if d[i] > 127 else d[i]
 
 
+def find_speed(frames: dict[str, str], known_kmh: float) -> None:
+    """Locate the vehicle-speed byte in the VMCU frame using a known dash speed.
+
+    The Ioniq 5 does not answer standard Mode 01 `010D`, so speed has to come from the
+    VMCU (22E004) and the offset must be derived rather than guessed — guessing is what
+    produced the wrong 220105 display-SOC decode.
+    """
+    raw = frames.get("22E004")
+    if not raw:
+        print("No 22E004 frame in this capture — is the app polling the VMCU query?")
+        return
+
+    payload = hex_tokens(raw)
+    d = strip_header(payload)
+    if d is None:
+        print(f"22E004 response not parseable: {raw}")
+        return
+
+    print(f"22E004 payload ({len(d)} bytes) vs known speed {known_kmh:g} km/h")
+    print("candidates within 2 km/h:\n")
+
+    tol = 2.0
+    hits = 0
+    for i, b in enumerate(d):
+        for label, val in (("raw", float(b)), ("/2", b / 2.0), ("*2", b * 2.0)):
+            if abs(val - known_kmh) <= tol:
+                print(f"  data[{i:2d}] (letter {_letters(i):>2}) = 0x{b:02X} -> {val:g} km/h via {label}")
+                hits += 1
+    for i in range(len(d) - 1):
+        for order, v in (("BE", (d[i] << 8) | d[i + 1]), ("LE", (d[i + 1] << 8) | d[i])):
+            for label, val in (("/10", v / 10.0), ("/100", v / 100.0), ("/128", v / 128.0)):
+                if abs(val - known_kmh) <= tol:
+                    print(f"  data[{i:2d}],data[{i+1:2d}] {order} = 0x{v:04X} -> {val:.2f} km/h via {label}")
+                    hits += 1
+
+    if hits == 0:
+        print("  none — check the speed you passed, or capture again while holding a steady speed")
+    else:
+        print("\nTake two captures at clearly different speeds and keep only the offset")
+        print("that tracks both; a single capture will always throw up coincidences.")
+
+
+def _letters(i: int) -> str:
+    return chr(97 + i) if i < 26 else chr(97 + (i // 26) - 1) + chr(97 + (i % 26))
+
+
+def find_odometer(frames: dict[str, str], known: float) -> None:
+    """Locate the odometer field in the cluster frame using the value on the dash.
+
+    Odometer is the cleanest calibration target we have: it is a large distinctive
+    number you can read exactly, so a coincidental match is far less likely than with
+    a small value like speed. Trip distance is then just end-minus-start.
+    """
+    raw = frames.get("22B002")
+    if not raw:
+        print("No 22B002 frame in this capture — is the app polling the cluster query?")
+        return
+
+    d = strip_header(hex_tokens(raw))
+    if d is None:
+        print(f"22B002 response not parseable: {raw}")
+        return
+
+    print(f"22B002 payload ({len(d)} bytes) vs known odometer {known:g}")
+    print("candidates within 1 unit (checking km and miles interpretations):\n")
+
+    hits = 0
+    # Odometers are 3-4 byte counters; include 2 for completeness on low-mileage cars.
+    for width in (2, 3, 4):
+        for i in range(len(d) - width + 1):
+            be = int.from_bytes(bytes(d[i : i + width]), "big")
+            le = int.from_bytes(bytes(d[i : i + width]), "little")
+            for order, v in (("BE", be), ("LE", le)):
+                for label, val in (("raw", float(v)), ("/10", v / 10.0)):
+                    for unit, converted in (("", val), (" (as km→mi)", val / 1.609344)):
+                        if abs(converted - known) <= 1.0:
+                            print(
+                                f"  data[{i}:{i+width}] {order} {width}B = 0x{v:0{width*2}X}"
+                                f" -> {converted:.1f} via {label}{unit}"
+                            )
+                            hits += 1
+
+    if hits == 0:
+        print("  none — check the value you passed, and that it is the odometer")
+        print("  (not trip A/B). Try again including a full frame in the capture.")
+    else:
+        print("\nIf several match, capture again after driving a few miles: only the")
+        print("real odometer will have advanced by the distance you actually covered.")
+
+
 def report(frames: dict[str, str]) -> None:
     soc = None
 
@@ -80,13 +170,16 @@ def report(frames: dict[str, str]) -> None:
         d = strip_header(hex_tokens(frames["220101"]))
         if d and len(d) >= 20:
             soc = d[idx("e")] / 2.0
+            # Matches IoniqUds.decode220101: positive = discharge, negative = charge/regen.
             current = s16(d, idx("k"), idx("l")) / 10.0
             volts = u16(d, idx("m"), idx("n")) / 10.0
+            power = current * volts / 1000.0
+            flow = "discharging" if power > 0 else "charging" if power < 0 else "idle"
             print("220101 (BMS)")
             print(f"  HV_SOC (raw BMS)   = {soc:.1f} %      <- dashboard source")
             print(f"  PACK_VOLTAGE       = {volts:.1f} V")
             print(f"  PACK_CURRENT       = {current:.1f} A")
-            print(f"  PACK_POWER         = {current * volts / 1000.0:.2f} kW")
+            print(f"  PACK_POWER         = {power:.2f} kW ({flow})")
             print(f"  BATT_TEMP max/min  = {s8(d, idx('o'))} / {s8(d, idx('p'))} C")
             if len(d) > idx("ad"):
                 print(f"  AUX_VOLTAGE        = {d[idx('ad')] * 0.1:.1f} V")
@@ -128,7 +221,7 @@ def report(frames: dict[str, str]) -> None:
 def extract_from_log(text: str) -> dict[str, str]:
     """Pull the newest response for each PID out of `adb logcat -s Elm327:V` output."""
     frames: dict[str, str] = {}
-    for pid in ("220101", "220105", "22E011"):
+    for pid in ("220101", "220105", "22E011", "22E004", "22B002"):
         matches = re.findall(rf"{pid} -> '([^']*)'", text)
         real = [m for m in matches if "62" in m.upper()]
         if real:
@@ -142,6 +235,18 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("logfile", nargs="?", help="output of: adb logcat -d -s Elm327:V")
     ap.add_argument("--baseline", action="store_true", help="replay the 54%% SOC reference capture")
+    ap.add_argument(
+        "--find-speed",
+        type=float,
+        metavar="KMH",
+        help="locate the VMCU speed byte using the speed shown on the dash during the capture",
+    )
+    ap.add_argument(
+        "--find-odometer",
+        type=float,
+        metavar="VALUE",
+        help="locate the cluster odometer field using the reading on the dash",
+    )
     args = ap.parse_args()
 
     if args.baseline:
@@ -160,6 +265,12 @@ def main() -> int:
         return 1
 
     print(f"=== CAPTURE: {args.logfile} ===\n")
+    if args.find_speed is not None:
+        find_speed(frames, args.find_speed)
+        return 0
+    if args.find_odometer is not None:
+        find_odometer(frames, args.find_odometer)
+        return 0
     report(frames)
     return 0
 

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
@@ -31,6 +32,16 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
             if (tripId == null) flowOf(emptyList()) else db.readingDao().observeForTrip(tripId)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /**
+     * Derived totals for the selected drive. Recomputed off the reading stream rather
+     * than stored, so it stays correct if readings arrive late from a running session.
+     */
+    val selectedTripSummary: StateFlow<TripSummary?> =
+        combine(_selectedTripId, trips, selectedTripReadings) { tripId, allTrips, readings ->
+            val trip = allTrips.firstOrNull { it.id == tripId } ?: return@combine null
+            if (readings.isEmpty()) null else TripSummary.from(trip, readings)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun selectTrip(tripId: Long) {
         _selectedTripId.value = tripId

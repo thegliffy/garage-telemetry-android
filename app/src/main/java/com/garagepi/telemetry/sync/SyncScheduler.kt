@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit
 
 object SyncScheduler {
     private const val PERIODIC_WORK_NAME = "garage-telemetry-sync-periodic"
+    private const val RETENTION_WORK_NAME = "garage-telemetry-retention-daily"
 
     /** Background safety net — catches trips that finished while offline. */
     fun schedulePeriodic(context: Context) {
@@ -30,6 +31,18 @@ object SyncScheduler {
             .setConstraints(networkConstraints())
             .build()
         WorkManager.getInstance(context).enqueue(request)
+    }
+
+    /** Daily retention pass. No network constraint — deletion is purely local. */
+    fun scheduleRetention(context: Context) {
+        val request = PeriodicWorkRequestBuilder<RetentionWorker>(1, TimeUnit.DAYS).build()
+        WorkManager.getInstance(context)
+            .enqueueUniquePeriodicWork(RETENTION_WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+    }
+
+    /** Runs retention immediately — used by app start and the Settings "Run cleanup now" button. */
+    fun triggerRetentionNow(context: Context) {
+        WorkManager.getInstance(context).enqueue(OneTimeWorkRequestBuilder<RetentionWorker>().build())
     }
 
     private fun networkConstraints() = Constraints.Builder()

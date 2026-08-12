@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -18,12 +19,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.garagepi.telemetry.ui.calibration.CalibrationScreen
 import com.garagepi.telemetry.ui.dashboard.DashboardScreen
 import com.garagepi.telemetry.ui.history.HistoryScreen
 import com.garagepi.telemetry.ui.settings.SettingsScreen
 
 private const val ROUTE_DASHBOARD = "dashboard"
 private const val ROUTE_HISTORY = "history"
+private const val ROUTE_CALIBRATION = "calibration"
 private const val ROUTE_SETTINGS = "settings"
 
 @Composable
@@ -49,6 +52,12 @@ fun GarageNavHost() {
                     label = { Text("History") },
                 )
                 NavigationBarItem(
+                    selected = currentDestination?.hierarchy?.any { it.route == ROUTE_CALIBRATION } == true,
+                    onClick = { navController.navigate(ROUTE_CALIBRATION) { launchSingleTop = true } },
+                    icon = { Icon(Icons.Filled.Tune, contentDescription = null) },
+                    label = { Text("Calibrate") },
+                )
+                NavigationBarItem(
                     selected = currentDestination?.hierarchy?.any { it.route == ROUTE_SETTINGS } == true,
                     onClick = { navController.navigate(ROUTE_SETTINGS) { launchSingleTop = true } },
                     icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
@@ -64,6 +73,7 @@ fun GarageNavHost() {
         ) {
             composable(ROUTE_DASHBOARD) { DashboardScreen() }
             composable(ROUTE_HISTORY) { HistoryScreen() }
+            composable(ROUTE_CALIBRATION) { CalibrationScreen() }
             composable(ROUTE_SETTINGS) { SettingsScreen() }
         }
     }

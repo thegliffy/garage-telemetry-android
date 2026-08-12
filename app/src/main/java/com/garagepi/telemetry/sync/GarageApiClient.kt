@@ -59,6 +59,24 @@ class GarageApiClient(private val baseUrl: String, private val apiKey: String) {
         execute("POST", "/v1/sessions/$sessionId/close", body)
     }
 
+    /**
+     * Verifies the endpoint is reachable and the key is accepted, without writing anything.
+     * `/health` needs no auth, so a second authenticated call is made to prove the key —
+     * otherwise a bad key would still report success.
+     */
+    fun checkConnection(): String {
+        val request = Request.Builder()
+            .url(baseUrl.trimEnd('/') + "/health")
+            .get()
+            .header("Authorization", "Bearer $apiKey")
+            .build()
+        http.newCall(request).execute().use { response ->
+            val text = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throw IOException("HTTP ${response.code}: $text")
+            return text.ifBlank { "ok" }
+        }
+    }
+
     private fun execute(method: String, path: String, body: okhttp3.RequestBody): String {
         val request = Request.Builder()
             .url(baseUrl.trimEnd('/') + path)
