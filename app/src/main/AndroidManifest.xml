@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Classic Bluetooth SPP to the ELM327 adapter. -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <!-- Required by the OS for Bluetooth device discovery/RSSI on API < 31. -->
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+
+    <application
+        android:name=".GarageTelemetryApp"
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.GarageTelemetry"
+        android:usesCleartextTraffic="true">
+
+        <!--
+          usesCleartextTraffic: the sync API runs as plain HTTP on the home LAN
+          (see garage-telemetry-api). Tighten this once it's behind TLS.
+        -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.GarageTelemetry">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
