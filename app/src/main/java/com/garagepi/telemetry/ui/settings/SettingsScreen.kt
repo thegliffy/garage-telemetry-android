@@ -36,7 +36,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
         OutlinedTextField(
             value = uiState.baseUrl,
             onValueChange = viewModel::updateBaseUrl,
-            label = { Text("API base URL (e.g. http://10.2.31.6:8000)") },
+            label = { Text("API base URL (e.g. http://192.168.1.50:8000)") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
