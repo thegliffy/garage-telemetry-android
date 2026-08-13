@@ -90,13 +90,16 @@ class TelemetryScreen(carContext: CarContext) : Screen(carContext) {
     }
 
     private fun row(field: TelemetryField, value: Double): Row {
-        // Templates give no reliable colour control per row, so direction is spelled out
+        // Templates give no reliable color control per row, so direction is spelled out
         // in words rather than relying on the red/green treatment the phone UI uses.
-        val text = if (field.signedFlow) {
-            val direction = if (value > 0) "discharging" else if (value < 0) "charging" else "idle"
-            "%.1f %s · %s".format(abs(value), field.unit, direction)
-        } else {
-            "%.1f %s".format(value, field.unit)
+        val decimals = field.decimals.coerceIn(0, 3)
+        val text = when {
+            field.isBoolean -> if (value != 0.0) "Yes" else "No"
+            field.signedFlow -> {
+                val direction = if (value > 0) "discharging" else if (value < 0) "charging" else "idle"
+                "%.${decimals}f %s · %s".format(abs(value), field.unit, direction)
+            }
+            else -> "%.${decimals}f %s".format(value, field.unit)
         }
         return Row.Builder().setTitle(field.label).addText(text).build()
     }

@@ -94,7 +94,7 @@ fun CarDashScreen() {
             items(tiles) { tile ->
                 val field = TelemetryFields.bySelectablePid(tile.pid)
                 if (field != null) {
-                    // Same gauges as the phone dashboard, but with colours pinned for the
+                    // Same gauges as the phone dashboard, but with colors pinned for the
                     // black background — the theme's onSurface would be near-invisible.
                     TileContent(
                         field = field,

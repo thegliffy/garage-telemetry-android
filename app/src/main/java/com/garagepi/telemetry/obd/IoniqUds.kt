@@ -69,7 +69,7 @@ object IoniqUds {
      *
      * Sign convention: **positive = discharge** (power leaving the battery),
      * **negative = charge/regen**. The dashboard shows the magnitude and conveys
-     * direction with colour rather than a minus sign.
+     * direction with color rather than a minus sign.
      *
      * NOT negated, despite a report that power reads inverted. The one capture we have
      * with a known vehicle state — parked in READY, so the pack must be discharging to
@@ -116,29 +116,24 @@ object IoniqUds {
     }
 
     /**
-     * Extended BMS (header 7E4): SOH and dashboard-display SOC.
+     * Extended BMS (header 7E4): SOH, display SOC, remaining energy and power limits.
      *
      * Torque CSV letters index the stripped payload directly — there is no -3 shift for the
-     * `62 xx xx` header. Evidence, all against a live Long Range (77.4 kWh) Ioniq 5:
-     *  - SOH (`z`/`aa`, unshifted) = 91.7%, plausible.
-     *  - Display SOC (`af` = data[31]) = 54.5% against a dash reading 54 (display SOC is
-     *    truncated, and raw BMS SOC from 220101 was 55.0%). data[31] is also the offset the
-     *    widely-used Kona/Ioniq 2105 spec uses.
-     *  - garagepi's ioniq_mode22.py assumed the shifted convention and read this region as
-     *    remaining energy instead; that decodes to 33.2 kWh at 54% SOC, implying a ~61 kWh
-     *    pack, which is wrong for this car — so the shifted convention is falsified.
+     * `62 xx xx` header. Verified against the Esprit1st Ioniq 5 Torque list and a live
+     * Long Range car:
+     *  - SOH (`z`/`aa`) = 91.7%.
+     *  - Display SOC (`af` = data[31]) = 54.5% against a dash reading 54, and holds a
+     *    steady +1.99% offset from raw BMS SOC (stdev 0.17) across a session. It was
+     *    briefly removed on the strength of an apparent -23%..+2% wander, but that was a
+     *    measurement error: those readings pooled sessions recorded by two *different*
+     *    decoder versions.
+     *  - Remaining energy (`ac`/`ad`) is a separate field in the same region, which is why
+     *    both readings of these bytes looked defensible at once. The CSV confirms both.
+     *    Its 33.2 kWh at 54% implies a ~61 kWh pack though, so treat the value as
+     *    unverified until compared against the car's own range estimate.
      *
      * [TelemetryFields.HV_SOC] still drives the dashboard from 220101, since both this app
      * and garagepi emit that field and agree on it.
-     */
-    /**
-     * Extended BMS (header 7E4).
-     *
-     * `af/2` is display SOC, matching the Esprit1st Ioniq 5 Torque CSV. It was briefly
-     * removed on the strength of an apparent -23%..+2% wander against raw SOC; that was a
-     * measurement error — those readings pooled sessions recorded by two different decoder
-     * versions. Split per session, the only one using `af` holds a steady +1.99% offset
-     * (stdev 0.17), which is what display-versus-BMS SOC should look like.
      */
     fun decode220105(data: ByteArray): Map<String, Double> {
         val out = mutableMapOf<String, Double>()
@@ -186,10 +181,17 @@ object IoniqUds {
      */
     fun decodeVmcuSpeed(data: ByteArray): Map<String, Double> {
         if (data.size <= SPEED_HI + 1) return emptyMap()
-        return mapOf("SPEED_VMCU" to round1(u16(data, SPEED_HI, SPEED_HI + 1) / 100.0))
+        val mph = u16(data, SPEED_HI, SPEED_HI + 1) / 100.0
+        // The car tops out around 115 mph, so anything past 150 is a bad frame, not a
+        // reading. Observed in the wild: ISO-TP padding (0xAAAA) decoding to 436.9 mph.
+        // parseData now trims that padding, but a truncated or garbled frame can still
+        // land here, and publishing it would poison both the charts and trip efficiency.
+        if (mph < 0 || mph > MAX_PLAUSIBLE_MPH) return emptyMap()
+        return mapOf("SPEED_VMCU" to round1(mph))
     }
 
     private const val SPEED_HI = 11
+    private const val MAX_PLAUSIBLE_MPH = 150.0
 
     /**
      * Cluster (header 7C6) — odometer at bytes 8–11, big-endian, in miles.
@@ -226,7 +228,7 @@ object IoniqUds {
         val out = mutableMapOf<String, Double>()
         for ((corner, base) in corners) {
             val psi = u8(data, base) / 5.0
-            // A sleeping sensor reports 0; publishing it would look like a flat tyre.
+            // A sleeping sensor reports 0; publishing it would look like a flat tire.
             if (psi > 0) out["TIRE_${corner}_PSI"] = round1(psi)
             out["TIRE_${corner}_C"] = (u8(data, base + 1) - 50).toDouble()
         }
@@ -258,7 +260,7 @@ object IoniqUds {
         UdsQuery("7E2", "22E004", ::decodeVmcuSpeed),
         // Odometer moves slowly; polling it often would just cost round trips.
         UdsQuery("7C6", "22B002", ::decodeClusterOdometer, everyNCycles = 10),
-        // Tyres and cabin temperature change on the scale of minutes, not seconds.
+        // Tires and cabin temperature change on the scale of minutes, not seconds.
         UdsQuery("7A0", "22C00B", ::decodeTpms, everyNCycles = 30),
         UdsQuery("7B3", "220100", ::decodeClimate, everyNCycles = 15),
     )

@@ -14,8 +14,8 @@ android {
         applicationId = "com.garagepi.telemetry"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.2.5"
+        versionCode = 5
+        versionName = "0.2.6"
     }
 
     buildTypes {

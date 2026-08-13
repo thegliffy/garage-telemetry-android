@@ -31,6 +31,8 @@ data class SettingsUiState(
     val readingCount: Int = 0,
     val dbSizeBytes: Long = 0,
     val cleanupRunning: Boolean = false,
+    val pendingUploads: Int = 0,
+    val syncing: Boolean = false,
     val connectionTest: String? = null,
     val connectionTestOk: Boolean = false,
     val testing: Boolean = false,
@@ -136,6 +138,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _uiState.value = _uiState.value.copy(retentionPolicy = policy)
     }
 
+    /**
+     * Queues an upload immediately rather than waiting for a drive to end or the 15 minute
+     * retry. The work has a network constraint, so with the API unreachable this queues
+     * rather than failing — the pending count simply will not drop, which is the honest
+     * signal.
+     */
+    fun syncNow() {
+        _uiState.value = _uiState.value.copy(syncing = true)
+        SyncScheduler.triggerNow(getApplication())
+        viewModelScope.launch {
+            delay(2_000)
+            refreshStorageStats()
+            _uiState.value = _uiState.value.copy(syncing = false)
+        }
+    }
+
     fun runCleanupNow() {
         _uiState.value = _uiState.value.copy(cleanupRunning = true)
         SyncScheduler.triggerRetentionNow(getApplication())
@@ -151,12 +169,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val sessions = db.tripSessionDao().countAll()
             val readings = db.readingDao().countAll()
+            val pending = db.readingDao().countAllUnuploaded()
             val size = withContext(Dispatchers.IO) {
                 File(getApplication<Application>().getDatabasePath("garage-telemetry.db").path).length()
             }
             _uiState.value = _uiState.value.copy(
                 sessionCount = sessions,
                 readingCount = readings,
+                pendingUploads = pending,
                 dbSizeBytes = size,
             )
         }

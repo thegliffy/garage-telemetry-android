@@ -9,6 +9,12 @@ enum class TileStyle(val label: String) {
 
     /** Two live markers: pack hottest and coldest point, and the spread between them. */
     BATT_TEMP_PAIR("Hi/low temp"),
+
+    /** All four corners in a 2x2 laid out as the car sits, front pair on top. */
+    TIRE_QUAD("Four corners"),
+
+    /** Front above rear, each with its own bidirectional bar. */
+    MOTOR_PAIR("Front/rear"),
     ;
 
     companion object {

@@ -133,7 +133,25 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             OutlinedButton(onClick = viewModel::testConnection, enabled = !uiState.testing) {
                 Text(if (uiState.testing) "Testing…" else "Test connection")
             }
+            OutlinedButton(
+                onClick = viewModel::syncNow,
+                // Pointless without an endpoint; a button that silently does nothing is
+                // worse than one that is visibly unavailable.
+                enabled = uiState.syncConfigured && !uiState.syncing,
+            ) {
+                Text(if (uiState.syncing) "Syncing…" else "Sync now")
+            }
         }
+
+        Text(
+            text = if (uiState.pendingUploads == 0) {
+                "Nothing waiting to upload"
+            } else {
+                "${uiState.pendingUploads} readings waiting to upload"
+            },
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         uiState.connectionTest?.let { message ->
             Text(

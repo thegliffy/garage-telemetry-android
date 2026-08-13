@@ -12,6 +12,10 @@ import com.garagepi.telemetry.obd.TelemetryFields
  */
 object FieldStyles {
 
+    /** Anchors for the composite tiles that render several readings at once. */
+    private val TIRE_ANCHORS = setOf(TelemetryFields.TIRE_FL.pid, TelemetryFields.TIRE_FL_TEMP.pid)
+    private val MOTOR_ANCHOR = TelemetryFields.MOTOR_RPM_FRONT.pid
+
     fun supported(field: TelemetryField): List<TileStyle> = buildList {
         add(TileStyle.NUMBER)
         if (field.hasRange) {
@@ -22,10 +26,14 @@ object FieldStyles {
             if (field.isTemperature) add(TileStyle.THERMOMETER)
         }
         if (field.pid == TelemetryFields.BATT_TEMP.pid) add(TileStyle.BATT_TEMP_PAIR)
+        if (field.pid in TIRE_ANCHORS) add(TileStyle.TIRE_QUAD)
+        if (field.pid == MOTOR_ANCHOR) add(TileStyle.MOTOR_PAIR)
     }
 
     fun default(field: TelemetryField): TileStyle = when {
         field.pid == TelemetryFields.BATT_TEMP.pid -> TileStyle.BATT_TEMP_PAIR
+        field.pid in TIRE_ANCHORS -> TileStyle.TIRE_QUAD
+        field.pid == MOTOR_ANCHOR -> TileStyle.MOTOR_PAIR
         !field.hasRange -> TileStyle.NUMBER
         field.signedFlow || field.min < 0 && !field.isTemperature -> TileStyle.POWER_ARC
         field.isTemperature -> TileStyle.THERMOMETER

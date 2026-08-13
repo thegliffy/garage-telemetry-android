@@ -35,4 +35,8 @@ interface ReadingDao {
 
     @Query("SELECT COUNT(*) FROM readings")
     suspend fun countAll(): Int
+
+    /** Across all sessions — what "Sync now" is about to send. */
+    @Query("SELECT COUNT(*) FROM readings WHERE uploaded = 0")
+    suspend fun countAllUnuploaded(): Int
 }
