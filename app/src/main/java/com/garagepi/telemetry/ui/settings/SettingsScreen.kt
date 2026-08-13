@@ -1,7 +1,11 @@
 package com.garagepi.telemetry.ui.settings
 
+import android.annotation.SuppressLint
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +15,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -20,15 +26,28 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.garagepi.telemetry.data.RetentionPolicy
+import com.garagepi.telemetry.ui.missingPermissions
 
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    var adapterMenuOpen by remember { mutableStateOf(false) }
+    var needsPermission by remember { mutableStateOf(missingPermissions(context).isNotEmpty()) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { needsPermission = missingPermissions(context).isNotEmpty() }
 
     Column(
         modifier = Modifier
@@ -37,6 +56,56 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
+        Text(text = "OBD2 adapter", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = "Pair the ELM327 in Android's Bluetooth settings first, then pick it here. " +
+                "The Live tab connects to whichever adapter is selected.",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+
+        Text(
+            text = uiState.selectedDeviceLabel?.let { "Selected: $it" } ?: "No adapter selected",
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+        )
+
+        if (needsPermission) {
+            // Without this the picker would just say "no paired devices", which points at
+            // the wrong problem entirely.
+            Button(onClick = { permissionLauncher.launch(missingPermissions(context).toTypedArray()) }) {
+                Text("Grant Bluetooth permission")
+            }
+        }
+
+        Box {
+            OutlinedButton(
+                onClick = { adapterMenuOpen = true },
+                enabled = !needsPermission,
+            ) {
+                Text(if (uiState.selectedDeviceAddress == null) "Choose adapter" else "Change adapter")
+            }
+            DropdownMenu(expanded = adapterMenuOpen, onDismissRequest = { adapterMenuOpen = false }) {
+                val devices = viewModel.pairedDevices()
+                if (devices.isEmpty()) {
+                    DropdownMenuItem(
+                        text = { Text("No paired devices — pair the ELM327 first") },
+                        onClick = { adapterMenuOpen = false },
+                    )
+                }
+                devices.forEach { device ->
+                    DropdownMenuItem(
+                        text = { Text(deviceLabel(device)) },
+                        onClick = {
+                            adapterMenuOpen = false
+                            viewModel.selectDevice(device)
+                        },
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider()
+
         Text(text = "Sync settings", style = MaterialTheme.typography.headlineMedium)
         Text(
             text = "Points at garage-telemetry-api on your home network. " +
@@ -148,6 +217,11 @@ private fun RetentionOption(policy: RetentionPolicy, selected: Boolean, onSelect
         }
     }
 }
+
+/** Reading `device.name` needs BLUETOOTH_CONNECT; fall back to the address without it. */
+@SuppressLint("MissingPermission")
+private fun deviceLabel(device: android.bluetooth.BluetoothDevice): String =
+    runCatching { device.name }.getOrNull() ?: device.address
 
 private fun formatSize(bytes: Long): String = when {
     bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1_000_000.0)

@@ -1,6 +1,11 @@
 package com.garagepi.telemetry.ui.settings
 
+import android.annotation.SuppressLint
 import android.app.Application
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothManager
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.garagepi.telemetry.data.RetentionPolicy
@@ -29,11 +34,15 @@ data class SettingsUiState(
     val connectionTest: String? = null,
     val connectionTestOk: Boolean = false,
     val testing: Boolean = false,
+    val selectedDeviceAddress: String? = null,
+    val selectedDeviceLabel: String? = null,
 )
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val settings = AppSettings(application)
     private val db = TelemetryDatabase.get(application)
+    private val bluetoothAdapter: BluetoothAdapter? =
+        (application.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
 
     private val _uiState = MutableStateFlow(
         SettingsUiState(
@@ -41,12 +50,40 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             apiKey = settings.apiKey,
             retentionPolicy = settings.retentionPolicy,
             syncConfigured = settings.syncConfigured,
+            selectedDeviceAddress = settings.lastDeviceAddress,
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
         refreshStorageStats()
+        refreshSelectedDevice()
+    }
+
+    /** Bonded devices, for the adapter picker. Empty if the permission is missing. */
+    @SuppressLint("MissingPermission")
+    fun pairedDevices(): List<BluetoothDevice> =
+        runCatching { bluetoothAdapter?.bondedDevices?.toList() }.getOrNull().orEmpty()
+
+    @SuppressLint("MissingPermission")
+    fun selectDevice(device: BluetoothDevice) {
+        settings.lastDeviceAddress = device.address
+        _uiState.value = _uiState.value.copy(
+            selectedDeviceAddress = device.address,
+            selectedDeviceLabel = runCatching { device.name }.getOrNull() ?: device.address,
+        )
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun refreshSelectedDevice() {
+        val address = settings.lastDeviceAddress ?: return
+        val label = runCatching {
+            bluetoothAdapter?.bondedDevices?.firstOrNull { it.address == address }?.name
+        }.getOrNull()
+        _uiState.value = _uiState.value.copy(
+            selectedDeviceAddress = address,
+            selectedDeviceLabel = label ?: address,
+        )
     }
 
     fun updateBaseUrl(value: String) {

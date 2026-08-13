@@ -22,6 +22,7 @@ import com.garagepi.telemetry.bluetooth.Elm327Connection
 import com.garagepi.telemetry.data.ReadingEntity
 import com.garagepi.telemetry.data.TelemetryDatabase
 import com.garagepi.telemetry.data.TripSessionEntity
+import com.garagepi.telemetry.obd.EfficiencyTracker
 import com.garagepi.telemetry.obd.ObdSession
 import com.garagepi.telemetry.obd.TelemetryFields
 import com.garagepi.telemetry.sync.AppSettings
@@ -73,6 +74,9 @@ class ObdLoggingService : Service() {
 
     private val db by lazy { TelemetryDatabase.get(applicationContext) }
     private val settings by lazy { AppSettings(applicationContext) }
+
+    /** Reset per session, so "trip" efficiency means this drive rather than all time. */
+    private val efficiency = EfficiencyTracker()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -133,6 +137,7 @@ class ObdLoggingService : Service() {
 
             tripId = db.tripSessionDao().insert(TripSessionEntity(startedAt = System.currentTimeMillis()))
             settings.lastDeviceAddress = address
+            efficiency.reset()
 
             val label = device.name ?: device.address
             ObdLoggingState.setConnection(ConnectionState.Connected(label))
@@ -177,7 +182,18 @@ class ObdLoggingService : Service() {
                 }
             } else {
                 emptyPolls = 0
-                val values = readings.associate { it.pid to it.value }
+                val values = readings.associate { it.pid to it.value }.toMutableMap()
+
+                // Efficiency is derived, not read from the car. Merging it in here means
+                // it behaves like any other field for tiles and gauges.
+                val speed = values[TelemetryFields.SPEED.pid]
+                val power = values[TelemetryFields.PACK_POWER.pid]
+                if (speed != null && power != null) {
+                    efficiency.update(System.currentTimeMillis(), speed, power)
+                    efficiency.sessionEfficiency()?.let { values[TelemetryFields.EFF_SESSION.pid] = it }
+                    efficiency.currentEfficiency()?.let { values[TelemetryFields.EFF_NOW.pid] = it }
+                }
+
                 ObdLoggingState.mergeValues(values)
                 db.readingDao().insertAll(
                     readings.map {

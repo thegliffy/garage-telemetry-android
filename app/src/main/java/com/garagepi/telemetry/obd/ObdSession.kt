@@ -72,19 +72,20 @@ class ObdSession(
                 Log.w(TAG, "${query.requestHex}: unparseable UDS response '$raw'")
                 continue
             }
-            if (query.calibrating) {
-                // Always publish the raw frame so the calibration screen has something to
-                // scan, then emit a reading too if this field has already been calibrated.
-                frames[query.requestHex] = data
-                calibrations[query.requestHex]?.let { field ->
-                    field.spec.extract(data)?.let { value ->
-                        readings.add(PidReading(field.pid, value, now))
-                    }
-                }
-                continue
+            // Publish every frame, not just uncalibrated ones, so the calibration screen
+            // can re-derive an offset for a field that turns out to be decoded wrongly.
+            frames[query.requestHex] = data
+
+            val override = calibrations[query.requestHex]
+            val decoded = when {
+                // A calibration saved in-app beats the built-in offset, so a bad decode
+                // can be corrected in the car without waiting for a new build.
+                override != null ->
+                    override.spec.extract(data)?.let { mapOf(override.pid to it) }.orEmpty()
+                query.calibrating -> emptyMap()
+                else -> query.decode(data)
             }
-            val decoded = query.decode(data)
-            if (decoded.isEmpty()) {
+            if (decoded.isEmpty() && !query.calibrating) {
                 Log.w(TAG, "${query.requestHex}: payload too short (${data.size}B) = ${data.toHex()}")
             }
             for ((pid, value) in decoded) {

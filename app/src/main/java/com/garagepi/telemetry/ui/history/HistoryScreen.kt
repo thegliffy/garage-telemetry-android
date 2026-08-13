@@ -100,7 +100,7 @@ private fun SummaryCard(summary: TripSummary) {
             SummaryRow(
                 "Distance",
                 summary.distanceMiles?.let { "%.1f mi".format(it) }
-                    ?: "— odometer not calibrated yet",
+                    ?: "— no odometer readings yet",
             )
             SummaryRow("Energy used", "%.2f kWh".format(summary.energyUsedKwh), DischargeRed)
             if (summary.energyRegenKwh > 0.01) {

@@ -4,11 +4,10 @@ import com.garagepi.telemetry.data.ReadingEntity
 import com.garagepi.telemetry.data.TripSessionEntity
 import com.garagepi.telemetry.obd.TelemetryFields
 
-private const val KM_PER_MILE = 1.609344
 
 /**
- * Derived per-drive totals. Distance and efficiency stay null until the cluster odometer
- * offset is calibrated — see IoniqUds.decodeClusterCalibration.
+ * Derived per-drive totals. Distance comes from the cluster odometer (miles), so it is
+ * an exact delta rather than an integration of speed.
  */
 data class TripSummary(
     val durationMs: Long,
@@ -16,15 +15,13 @@ data class TripSummary(
     val socEnd: Double?,
     val energyUsedKwh: Double,
     val energyRegenKwh: Double,
-    val distanceKm: Double?,
+    val distanceMiles: Double?,
     val sampleCount: Int,
 ) {
     val socUsed: Double? = if (socStart != null && socEnd != null) socStart - socEnd else null
 
     /** Net energy out of the pack: consumption less anything regen put back. */
     val netEnergyKwh: Double = energyUsedKwh - energyRegenKwh
-
-    val distanceMiles: Double? = distanceKm?.div(KM_PER_MILE)
 
     /** Miles per kWh. Null when distance is unknown or nothing was actually consumed. */
     val efficiencyMilesPerKwh: Double? =
@@ -51,8 +48,10 @@ data class TripSummary(
                 if (avgKw >= 0) used += avgKw * dtHours else regen += -avgKw * dtHours
             }
 
-            val odometer = readings.filter { it.pid == ODOMETER_PID }.sortedBy { it.ts }
+            val odometer = readings.filter { it.pid == TelemetryFields.ODOMETER.pid }.sortedBy { it.ts }
             val distance = if (odometer.size >= 2) {
+                // Reject a negative delta: the odometer only counts up, so anything else
+                // means a bad frame slipped through rather than a real distance.
                 (odometer.last().value - odometer.first().value).takeIf { it >= 0 }
             } else {
                 null
@@ -64,12 +63,9 @@ data class TripSummary(
                 socEnd = soc.lastOrNull()?.value,
                 energyUsedKwh = used,
                 energyRegenKwh = regen,
-                distanceKm = distance,
+                distanceMiles = distance,
                 sampleCount = readings.size,
             )
         }
-
-        /** Populated once the cluster odometer decode is calibrated. */
-        const val ODOMETER_PID = "ODOMETER_KM"
     }
 }

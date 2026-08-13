@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Declares this app to Android Auto as a template app. Without this the car host
+  will not surface the app at all, regardless of the CarAppService in the manifest.
+-->
+<automotiveApp>
+    <uses name="template" />
+</automotiveApp>

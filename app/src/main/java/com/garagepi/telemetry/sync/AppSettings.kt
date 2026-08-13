@@ -42,17 +42,48 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean(KEY_IMPERIAL, true)
         set(value) = prefs.edit().putBoolean(KEY_IMPERIAL, value).apply()
 
+    /**
+     * Which field each dashboard tile shows and how it is drawn, in order. Always
+     * [TILE_COUNT] entries; a blank pid means an empty slot, so the grid need not be full.
+     *
+     * Stored as `pid:STYLE`. A bare `pid` — the format used before styles existed — parses
+     * as "use the field's default style", so an existing layout survives the upgrade
+     * instead of resetting.
+     */
+    var dashboardTiles: List<TileConfig>
+        get() {
+            val stored = prefs.getString(KEY_TILES, null)?.split(TILE_DELIMITER)
+                ?: return defaultTiles()
+            // Pad or trim rather than trusting stored length: the tile count may change
+            // between versions, and a short list would otherwise crash the grid.
+            return List(TILE_COUNT) { TileConfig.parse(stored.getOrElse(it) { "" }) }
+        }
+        set(value) {
+            val normalized = List(TILE_COUNT) { value.getOrElse(it) { TileConfig("") } }
+            prefs.edit()
+                .putString(KEY_TILES, normalized.joinToString(TILE_DELIMITER) { it.serialize() })
+                .apply()
+        }
+
+    private fun defaultTiles(): List<TileConfig> =
+        List(TILE_COUNT) { TileConfig(TelemetryFields.SELECTABLE.getOrNull(it)?.pid ?: "") }
+
     /** Calibrated fields keyed by request hex, for [com.garagepi.telemetry.obd.ObdSession]. */
     fun calibratedFields(): Map<String, CalibratedField> = buildMap {
         odometerSpec?.let { put(it.pid, CalibratedField(TelemetryFields.ODOMETER.pid, it)) }
         speedSpec?.let { put(it.pid, CalibratedField(TelemetryFields.SPEED.pid, it)) }
     }
 
-    private companion object {
+    companion object {
+        /** Tiles on the main dashboard: 2x5 in portrait, 5x2 in landscape. */
+        const val TILE_COUNT = 10
+        private const val TILE_DELIMITER = ","
+
         const val KEY_BASE_URL = "base_url"
         const val KEY_API_KEY = "api_key"
         const val KEY_DEVICE_ADDRESS = "last_device_address"
         const val KEY_RETENTION = "retention_policy"
+        const val KEY_TILES = "dashboard_tiles"
         const val KEY_ODOMETER_SPEC = "odometer_spec"
         const val KEY_SPEED_SPEC = "speed_spec"
         const val KEY_IMPERIAL = "imperial_units"

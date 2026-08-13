@@ -14,8 +14,8 @@ android {
         applicationId = "com.garagepi.telemetry"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 4
+        versionName = "0.2.5"
     }
 
     buildTypes {
@@ -63,6 +63,10 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(libs.androidx.work.runtime.ktx)
+    // Both are required: `app` carries the template API compiled against here, while
+    // `app-projected` provides the Android Auto host connection and is runtime-only.
+    implementation(libs.androidx.car.app)
+    implementation(libs.androidx.car.app.projected)
 
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
