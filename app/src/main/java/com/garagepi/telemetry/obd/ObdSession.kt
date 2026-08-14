@@ -35,6 +35,7 @@ class ObdSession(
     private val connection: Elm327Connection,
     /** Saved calibrations, keyed by request hex — turns a calibrating query into real readings. */
     private val calibrations: Map<String, CalibratedField> = emptyMap(),
+    private val sanitizer: ReadingSanitizer = ReadingSanitizer(),
 ) {
 
     suspend fun initialize() {
@@ -44,6 +45,7 @@ class ObdSession(
         // ATZ resets the adapter, so any header we thought was set is gone.
         currentHeader = null
         cycle = 0
+        sanitizer.reset()
     }
 
     private var cycle = 0L
@@ -93,7 +95,13 @@ class ObdSession(
             }
         }
 
-        return PollResult(readings, frames)
+        // Calibration overrides skip IoniqUds plausibility checks; sanitize here so a
+        // garbled frame cannot reach Room, the gauges, or trip efficiency.
+        val kept = sanitizer.filter(readings)
+        if (kept.size < readings.size) {
+            Log.w(TAG, "tossed ${readings.size - kept.size} implausible reading(s)")
+        }
+        return PollResult(kept, frames)
     }
 
     fun close() = connection.close()

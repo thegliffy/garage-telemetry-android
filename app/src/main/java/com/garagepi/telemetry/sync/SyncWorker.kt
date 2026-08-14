@@ -1,6 +1,7 @@
 package com.garagepi.telemetry.sync
 
 import android.content.Context
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
@@ -9,6 +10,8 @@ import com.garagepi.telemetry.data.SessionReaper
 import com.garagepi.telemetry.data.TelemetryDatabase
 import com.garagepi.telemetry.data.TripSessionEntity
 import java.time.Instant
+
+private const val TAG = "SyncWorker"
 
 /**
  * Uploads locally-recorded trips to garage-telemetry-api. Local Room data is
@@ -36,6 +39,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             try {
                 syncTrip(trip, db, client)
             } catch (e: Exception) {
+                Log.w(TAG, "sync trip ${trip.id} failed: ${e.message}")
                 hadFailure = true
             }
         }
@@ -61,7 +65,16 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         while (true) {
             val batch = db.readingDao().getUnuploaded(trip.id)
             if (batch.isEmpty()) break
-            client.uploadReadings(remoteSessionId, batch.map { it.toPayload() })
+            val payloads = batch.mapNotNull { it.toPayload() }
+            val dropped = batch.size - payloads.size
+            if (dropped > 0) {
+                Log.w(TAG, "dropping $dropped reading(s) with unmapped/oversize pid in trip ${trip.id}")
+            }
+            // Always mark the local rows uploaded: skipped pids must not retry forever,
+            // and an all-skipped batch must not POST an empty readings array (API min=1).
+            if (payloads.isNotEmpty()) {
+                client.uploadReadings(remoteSessionId, payloads)
+            }
             db.readingDao().markUploaded(batch.map { it.id })
         }
 
@@ -71,9 +84,12 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         }
     }
 
-    private fun ReadingEntity.toPayload() = ReadingPayload(
-        ts = Instant.ofEpochMilli(ts).toString(),
-        pid = pid,
-        value = value,
-    )
+    private fun ReadingEntity.toPayload(): ReadingPayload? {
+        val apiPid = PidMap.toApiPid(pid) ?: return null
+        return ReadingPayload(
+            ts = Instant.ofEpochMilli(ts).toString(),
+            pid = apiPid,
+            value = value,
+        )
+    }
 }

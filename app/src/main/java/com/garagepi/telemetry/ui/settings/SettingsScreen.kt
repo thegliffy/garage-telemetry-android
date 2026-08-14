@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -162,6 +163,33 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
                 } else {
                     MaterialTheme.colorScheme.error
                 },
+            )
+        }
+
+        HorizontalDivider()
+
+        Text(text = "Display", style = MaterialTheme.typography.headlineMedium)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { viewModel.setFahrenheit(!uiState.fahrenheit) }
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Temperatures in Fahrenheit", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    // Worth stating: the stored series stays Celsius so it matches what
+                    // garagepi writes to the same table.
+                    "Display only — readings are stored and uploaded in Celsius.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = uiState.fahrenheit,
+                onCheckedChange = viewModel::setFahrenheit,
             )
         }
 

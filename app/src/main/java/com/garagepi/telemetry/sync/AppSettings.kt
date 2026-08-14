@@ -43,6 +43,14 @@ class AppSettings(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_IMPERIAL, value).apply()
 
     /**
+     * Show temperatures in Fahrenheit. Display only — readings are stored and uploaded in
+     * Celsius, since garagepi writes the same series and the two must not diverge.
+     */
+    var temperatureInFahrenheit: Boolean
+        get() = prefs.getBoolean(KEY_FAHRENHEIT, true)
+        set(value) = prefs.edit().putBoolean(KEY_FAHRENHEIT, value).apply()
+
+    /**
      * Which field each dashboard tile shows and how it is drawn, in order. Always
      * [TILE_COUNT] entries; a blank pid means an empty slot, so the grid need not be full.
      *
@@ -87,5 +95,6 @@ class AppSettings(context: Context) {
         const val KEY_ODOMETER_SPEC = "odometer_spec"
         const val KEY_SPEED_SPEC = "speed_spec"
         const val KEY_IMPERIAL = "imperial_units"
+        const val KEY_FAHRENHEIT = "temperature_fahrenheit"
     }
 }

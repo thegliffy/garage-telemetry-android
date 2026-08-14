@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive-icon foreground. Viewport is 108dp; keep the gauge inside the
+  center ~72dp so circular/squircle masks do not clip the arc or needle.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Gauge arc: 150° → 30° clockwise (opening at the bottom). -->
+    <path
+        android:pathData="M29.8,68 A28,28 0 1,1 78.2,68"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="26"
+                android:startY="54"
+                android:endX="82"
+                android:endY="54">
+                <item android:offset="0" android:color="#3D9CFD" />
+                <item android:offset="0.55" android:color="#2EC4B6" />
+                <item android:offset="1" android:color="#7CFF6B" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Tick marks at 40° steps along the same arc. -->
+    <path
+        android:strokeWidth="1.6"
+        android:strokeColor="#E8EEF6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="
+            M29.7,61.0 L32.2,59.6
+            M32.6,42.6 L35.5,44.3
+            M46.0,28.4 L47.0,31.8
+            M54.0,26.0 L54.0,29.6
+            M62.0,28.4 L61.0,31.8
+            M75.4,42.6 L72.5,44.3
+            M78.3,61.0 L75.8,59.6" />
+
+    <!-- Needle pointing ~2 o'clock (green band). -->
+    <path
+        android:fillColor="#F4F7FB"
+        android:pathData="M51.6,56.4 L73.2,42.8 L54.8,51.6 Z" />
+
+    <!-- Hub -->
+    <path
+        android:fillColor="#F4F7FB"
+        android:pathData="M54,54 m-7.2,0 a7.2,7.2 0 1,1 14.4,0 a7.2,7.2 0 1,1 -14.4,0" />
+
+    <!-- Lightning bolt cutout (same navy as the launcher background). -->
+    <path
+        android:fillColor="#0B1220"
+        android:pathData="M56.6,47.2 L51.2,54.6 L54.4,54.6 L51.4,60.8 L60.2,53.0 L56.6,53.0 Z" />
+</vector>

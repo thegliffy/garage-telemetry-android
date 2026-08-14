@@ -32,9 +32,9 @@ data class ReadingsBatchRequest(val readings: List<ReadingPayload>)
 
 /**
  * Client for garage-telemetry-api's ingest contract (docs/ANDROID_CONTRACT.md
- * in that repo). Same endpoints garagepi's sync.py uses, so a "SPEED"
- * reading from the Pi and a "010D" reading from this app land in the same
- * `readings` series server-side.
+ * in that repo). Same endpoints garagepi's sync.py uses. Local decoder names are
+ * mapped through [PidMap] before upload so they land in the same `readings.pid`
+ * series as the Pi.
  */
 class GarageApiClient(private val baseUrl: String, private val apiKey: String) {
     private val http = OkHttpClient.Builder()
@@ -60,37 +60,64 @@ class GarageApiClient(private val baseUrl: String, private val apiKey: String) {
     }
 
     /**
-     * Verifies the endpoint is reachable and the key is accepted, without writing anything.
-     * `/health` needs no auth, so a second authenticated call is made to prove the key —
-     * otherwise a bad key would still report success.
+     * Verifies the host is up *and* the key is accepted.
+     *
+     * `/health` is unauthenticated, so a second call is required. Prefer `GET /v1/auth`.
+     * Older APIs without that route are probed with `POST .../close` on a nonexistent
+     * session: 404 means the key was accepted without writing a row.
      */
     fun checkConnection(): String {
-        val request = Request.Builder()
-            .url(baseUrl.trimEnd('/') + "/health")
-            .get()
-            .header("Authorization", "Bearer $apiKey")
-            .build()
-        http.newCall(request).execute().use { response ->
-            val text = response.body?.string().orEmpty()
-            if (!response.isSuccessful) throw IOException("HTTP ${response.code}: $text")
-            return text.ifBlank { "ok" }
+        val (healthCode, healthBody) = call("GET", "/health")
+        if (healthCode !in 200..299) {
+            throw IOException("HTTP $healthCode /health: $healthBody")
+        }
+
+        val (authCode, authBody) = call("GET", "/v1/auth")
+        when (authCode) {
+            in 200..299 -> return authBody.ifBlank { "ok" }
+            401 -> throw IOException("HTTP 401: invalid API key")
+            404 -> return probeKeyWithoutWrite()
+            else -> throw IOException("HTTP $authCode /v1/auth: $authBody")
+        }
+    }
+
+    /** 401 = bad key; 404/200 = key accepted (session missing or already gone). */
+    private fun probeKeyWithoutWrite(): String {
+        val (code, body) = call(
+            "POST",
+            "/v1/sessions/$PROBE_SESSION_ID/close",
+            "{}".toRequestBody(JSON_MEDIA_TYPE),
+        )
+        when (code) {
+            401 -> throw IOException("HTTP 401: invalid API key")
+            404, 200 -> return "ok"
+            else -> throw IOException("HTTP $code close-probe: $body")
         }
     }
 
     private fun execute(method: String, path: String, body: okhttp3.RequestBody): String {
+        val (code, text) = call(method, path, body)
+        if (code !in 200..299) {
+            throw IOException("HTTP $code $path: $text")
+        }
+        return text
+    }
+
+    private fun call(method: String, path: String, body: okhttp3.RequestBody? = null): Pair<Int, String> {
         val request = Request.Builder()
             .url(baseUrl.trimEnd('/') + path)
             .method(method, body)
             .header("Authorization", "Bearer $apiKey")
-            .header("Content-Type", "application/json")
+            .apply { if (body != null) header("Content-Type", "application/json") }
             .build()
-
         http.newCall(request).execute().use { response ->
             val text = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                throw IOException("HTTP ${response.code} $path: $text")
-            }
-            return text
+            return response.code to text
         }
+    }
+
+    companion object {
+        /** Well-formed UUID that should not exist; used only as an auth probe. */
+        const val PROBE_SESSION_ID = "00000000-0000-4000-8000-000000000000"
     }
 }

@@ -18,11 +18,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.garagepi.telemetry.obd.TelemetryFields
+import com.garagepi.telemetry.obd.Units
+import com.garagepi.telemetry.sync.AppSettings
 import com.garagepi.telemetry.ui.theme.ChargeGreen
 import com.garagepi.telemetry.ui.theme.DischargeRed
 import java.text.DateFormat
@@ -35,6 +39,7 @@ fun HistoryScreen(viewModel: HistoryViewModel = viewModel()) {
     val selectedTripId by viewModel.selectedTripId.collectAsState()
     val readings by viewModel.selectedTripReadings.collectAsState()
     val summary by viewModel.selectedTripSummary.collectAsState()
+    val context = LocalContext.current
 
     if (selectedTripId == null) {
         Column(
@@ -74,8 +79,14 @@ fun HistoryScreen(viewModel: HistoryViewModel = viewModel()) {
 
         HorizontalDivider()
 
-        TelemetryFields.CHART_FIELDS.forEach { field ->
-            val series = readings.filter { it.pid == field.pid }.map { it.ts to it.value }
+        val fahrenheit = remember { AppSettings(context).temperatureInFahrenheit }
+        TelemetryFields.CHART_FIELDS.forEach { raw ->
+            val field = Units.forDisplay(raw, fahrenheit)
+            val series = readings
+                .filter { it.pid == field.pid }
+                // Stored Celsius, shown in whatever the setting says — the axis labels come
+                // from the same converted values, so the scale follows automatically.
+                .map { it.ts to if (fahrenheit && raw.isTemperature) Units.celsiusToFahrenheit(it.value) else it.value }
             if (series.isNotEmpty()) {
                 Text(
                     text = "${field.label} (${field.unit})",

@@ -15,6 +15,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.garagepi.telemetry.obd.TelemetryField
 import com.garagepi.telemetry.obd.TelemetryFields
+import com.garagepi.telemetry.obd.Units
 import com.garagepi.telemetry.service.ConnectionState
 import com.garagepi.telemetry.service.LoggingState
 import com.garagepi.telemetry.service.ObdLoggingService
@@ -63,8 +64,11 @@ class TelemetryScreen(carContext: CarContext) : Screen(carContext) {
 
     private fun paneTemplate(state: LoggingState): Template {
         val pane = Pane.Builder()
-        val rows = TelemetryFields.CAR_FIELDS.mapNotNull { field ->
-            state.latestValues[field.pid]?.let { row(field, it) }
+        val fahrenheit = settings.temperatureInFahrenheit
+        val values = Units.forDisplay(state.latestValues, fahrenheit)
+        val rows = TelemetryFields.CAR_FIELDS.mapNotNull { raw ->
+            val field = Units.forDisplay(raw, fahrenheit)
+            values[field.pid]?.let { row(field, it) }
         }
 
         if (rows.isEmpty()) {

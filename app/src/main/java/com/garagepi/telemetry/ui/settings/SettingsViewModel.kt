@@ -33,6 +33,7 @@ data class SettingsUiState(
     val cleanupRunning: Boolean = false,
     val pendingUploads: Int = 0,
     val syncing: Boolean = false,
+    val fahrenheit: Boolean = true,
     val connectionTest: String? = null,
     val connectionTestOk: Boolean = false,
     val testing: Boolean = false,
@@ -53,6 +54,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             retentionPolicy = settings.retentionPolicy,
             syncConfigured = settings.syncConfigured,
             selectedDeviceAddress = settings.lastDeviceAddress,
+            fahrenheit = settings.temperatureInFahrenheit,
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -130,6 +132,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 ),
             )
         }
+    }
+
+    /** Display only — stored and uploaded readings stay in Celsius. */
+    fun setFahrenheit(enabled: Boolean) {
+        settings.temperatureInFahrenheit = enabled
+        _uiState.value = _uiState.value.copy(fahrenheit = enabled)
     }
 
     /** Retention is applied on selection — no Save needed, so it cannot be silently lost. */

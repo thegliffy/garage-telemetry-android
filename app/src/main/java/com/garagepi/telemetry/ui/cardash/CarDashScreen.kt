@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.garagepi.telemetry.obd.TelemetryFields
+import com.garagepi.telemetry.obd.Units
 import com.garagepi.telemetry.service.ConnectionState
 import com.garagepi.telemetry.service.ObdLoggingState
 import com.garagepi.telemetry.sync.AppSettings
@@ -48,6 +49,10 @@ fun CarDashScreen() {
     // Same layout the user configured on the phone dashboard, so car mode is not a second
     // thing to set up.
     val tiles = remember { AppSettings(context).dashboardTiles.filterNot { it.isEmpty } }
+    val fahrenheit = remember { AppSettings(context).temperatureInFahrenheit }
+    val displayValues = remember(state.latestValues, fahrenheit) {
+        Units.forDisplay(state.latestValues, fahrenheit)
+    }
 
     DisposableEffect(Unit) {
         val activity = context as? Activity
@@ -93,13 +98,14 @@ fun CarDashScreen() {
         ) {
             items(tiles) { tile ->
                 val field = TelemetryFields.bySelectablePid(tile.pid)
+                    ?.let { Units.forDisplay(it, fahrenheit) }
                 if (field != null) {
                     // Same gauges as the phone dashboard, but with colors pinned for the
                     // black background — the theme's onSurface would be near-invisible.
                     TileContent(
                         field = field,
                         style = FieldStyles.resolve(field, tile.style),
-                        values = state.latestValues,
+                        values = displayValues,
                         compact = false,
                         textColor = Color.White,
                         trackColor = Color(0xFF303030),

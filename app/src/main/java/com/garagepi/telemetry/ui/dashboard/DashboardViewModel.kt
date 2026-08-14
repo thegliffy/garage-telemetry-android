@@ -43,9 +43,13 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
      * because the adapter picker now lives in Settings and this screen has no other way to
      * learn that the choice changed.
      */
+    private val _fahrenheit = MutableStateFlow(settings.temperatureInFahrenheit)
+    val fahrenheit: StateFlow<Boolean> = _fahrenheit.asStateFlow()
+
     fun refresh() {
         _savedDevice.value = readSavedDevice()
         _tiles.value = settings.dashboardTiles
+        _fahrenheit.value = settings.temperatureInFahrenheit
     }
 
     fun connect() {

@@ -44,6 +44,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.garagepi.telemetry.R
 import com.garagepi.telemetry.obd.TelemetryField
 import com.garagepi.telemetry.obd.TelemetryFields
+import com.garagepi.telemetry.obd.Units
 import com.garagepi.telemetry.service.ConnectionState
 import com.garagepi.telemetry.sync.TileConfig
 import com.garagepi.telemetry.ui.gauge.FieldStyles
@@ -59,7 +60,14 @@ fun DashboardScreen(
     val uiState by viewModel.uiState.collectAsState()
     val tiles by viewModel.tiles.collectAsState()
     val savedDevice by viewModel.savedDevice.collectAsState()
+    val fahrenheit by viewModel.fahrenheit.collectAsState()
     val context = LocalContext.current
+
+    // Converted once for the whole grid: the composite tiles read sibling pids straight
+    // out of this map, so per-tile conversion would mix units within one tile.
+    val displayValues = remember(uiState.latestValues, fahrenheit) {
+        Units.forDisplay(uiState.latestValues, fahrenheit)
+    }
 
     var hasPermission by remember { mutableStateOf(missingPermissions(context).isEmpty()) }
     var editingTile by remember { mutableStateOf<Int?>(null) }
@@ -111,11 +119,11 @@ fun DashboardScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             itemsIndexed(tiles) { index, tile ->
-                val field = viewModel.fieldFor(tile.pid)
+                val field = viewModel.fieldFor(tile.pid)?.let { Units.forDisplay(it, fahrenheit) }
                 StatCard(
                     field = field,
                     style = field?.let { FieldStyles.resolve(it, tile.style) },
-                    values = uiState.latestValues,
+                    values = displayValues,
                     compact = landscape,
                     onClick = { editingTile = index },
                 )

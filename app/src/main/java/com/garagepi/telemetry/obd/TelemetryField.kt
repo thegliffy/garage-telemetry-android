@@ -1,14 +1,10 @@
 package com.garagepi.telemetry.obd
 
 /**
- * One dashboard-displayable value. `pid` is the shared identifier used in
- * Room, the sync API's `readings.pid`, and garagepi's `pid_map.py` — for the
- * one Mode 01 PID we still use it's the standard hex code ("010D"); for the
- * Ioniq Mode 22 EV fields it's the same field name garagepi's
- * ioniq_mode22.py already emits ("HV_SOC_DISPLAY", "PACK_VOLTAGE_V", ...),
- * reused as-is rather than inventing a second convention for one car.
- */
-/**
+ * One dashboard-displayable value. `pid` is the identifier used in Room and the
+ * UI. On upload, [com.garagepi.telemetry.sync.PidMap] rewrites it to the
+ * Postgres `readings.pid` code (≤16 chars, same table as garagepi `pid_map.py`).
+ *
  * @param signedFlow true for values whose sign means direction of energy flow. These are
  *   shown as a magnitude and coloured instead — red for positive (discharge), green for
  *   negative (charge/regen) — so a driver reads the number, not a minus sign.
@@ -220,7 +216,25 @@ object TelemetryFields {
         HV_SOH,
     )
 
-    private val byPid = CHART_FIELDS.associateBy { it.pid }
+    /**
+     * Every field, including the ones the composite tiles render but that are not offered
+     * separately in the picker. Built from the other lists plus the siblings so a field
+     * added to any of them is covered here automatically.
+     */
+    val ALL: List<TelemetryField> = (
+        SELECTABLE + CHART_FIELDS + CAR_FIELDS + DASHBOARD_FIELDS + listOf(
+            TIRE_FR, TIRE_RL, TIRE_RR,
+            TIRE_FR_TEMP, TIRE_RL_TEMP, TIRE_RR_TEMP,
+            MOTOR_RPM_REAR, AUX_SOC, SPEED_CLUSTER,
+        )
+        ).distinctBy { it.pid }
+
+    private val byPid = ALL.associateBy { it.pid }
+
+    fun byAnyPid(pid: String): TelemetryField? = byPid[pid]
+
+    /** Used by unit conversion, which must cover sibling pids the picker never lists. */
+    fun isTemperaturePid(pid: String): Boolean = byPid[pid]?.isTemperature == true
 
     fun labelFor(pid: String): String = byPid[pid]?.label ?: pid
     fun unitFor(pid: String): String = byPid[pid]?.unit ?: ""
