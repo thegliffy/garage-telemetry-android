@@ -1,110 +1,115 @@
 # jaryo
 
-Live telemetry for a Hyundai Ioniq 5 (E-GMP), read over a classic Bluetooth ELM327
-adapter. Shows a configurable gauge dashboard while driving, logs every sample locally
-(Room), and uploads to the shared [`garage-telemetry-api`](../garage-telemetry-api).
+<p align="center">
+  <img src="docs/screenshots/icon.png" width="96" alt="jaryo icon" />
+</p>
 
-Companion to [`garagepi`](../garagepi), which logs the same car while it is parked at
-home. Both write into the same Postgres `readings` table through the same ingest
-contract, so home and driving data form one history.
+<p align="center">
+  <strong>Live Ioniq 5 telemetry over a Bluetooth ELM327</strong><br />
+  Unofficial · not affiliated with Hyundai
+</p>
 
-## What it reads
+<p align="center">
+  <a href="https://github.com/thegliffy/garage-telemetry-android/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/thegliffy/garage-telemetry-android?label=release" /></a>
+  <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-2e7d32" />
+</p>
 
-The Ioniq 5 answers almost nothing on standard Mode 01 PIDs — no RPM, no coolant, not
-even speed — so everything useful comes from manufacturer Mode 22 (UDS) queries. Offsets
-come from the [Esprit1st Ioniq 5 Torque Pro PID list](https://github.com/Esprit1st/Hyundai-Ioniq-5-Torque-Pro-PIDs),
-cross-checked against captured frames from the car.
+jaryo is a phone dashboard for a Hyundai Ioniq 5 (E-GMP). Pair a classic Bluetooth
+OBD2 adapter, leave it in the car, and the Live tab draws SOC, pack power, efficiency,
+temps, motors, and tires while a foreground service keeps logging with the screen off.
 
-Roughly 50 values including HV SOC (raw and display), pack voltage / current / power,
-energy remaining, cell voltage extremes, battery temperatures, SOH, motor RPM front and
-rear, isolation resistance, lifetime kWh charged and used, cabin and outside temperature,
-all four tire pressures and temperatures, charge-port state, plus derived live efficiency.
+Trips are stored on the phone first (Drive vs Charge). Optionally they upload to the
+same ingest API as the garage Pi logger, so home arrivals and road trips land in one
+Postgres / Grafana history.
 
-Speed and the odometer are **calibrated in-app** rather than guessed — see below.
+The Ioniq 5 answers almost nothing on standard Mode 01 PIDs. Everything useful here
+comes from manufacturer Mode 22 (UDS), decoded from published E-GMP offsets and
+checked against frames from the car.
 
-## Setup
+## Screenshots
 
-1. Pair the ELM327 with the phone in Android's Bluetooth settings (the app lists paired
-   devices, it does not scan).
+<p align="center">
+  <img src="docs/screenshots/live.png" width="30%" alt="Live dashboard" />
+  <img src="docs/screenshots/history.png" width="30%" alt="History list" />
+  <img src="docs/screenshots/charge.png" width="30%" alt="DC fast charge" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/car-mode.png" width="92%" alt="Car mode, landscape" />
+</p>
+
+| | |
+| --- | --- |
+| **Live** | Eight configurable tiles (2×4 portrait, 4×2 landscape). Gauges, numbers, power arcs, dual cabin/outside thermometers, tire corners, motors. |
+| **Car mode** | Same tiles full-screen landscape, screen held awake, laid out so they fit without scrolling. |
+| **Charging** | DC fast-charge charts: SOC, kW, pack voltage, battery max/min. |
+| **History** | Each session is prefixed Drive or Charge. Summary plus charts (temps and motors overlaid). |
+
+Plug into CCS (or pack power at DC rates) and logging splits a **Charge** record off the
+current **Drive**. Unplug and the next stretch is a Drive again.
+
+## Install
+
+1. Pair the ELM327 in **Android Bluetooth settings** (the app lists paired devices; it
+   does not scan).
 2. Install the APK from [Releases](https://github.com/thegliffy/garage-telemetry-android/releases).
-   Real device only — Bluetooth SPP does not work on an emulator.
-3. **Settings** → choose the adapter, and set the API base URL and key if you want sync.
-   **Test connection** checks both.
-4. **Live** → grant the Bluetooth and notification permissions, then Connect.
+   Physical phone only — classic SPP does not work on an emulator.
+3. **Settings** → pick the adapter. Set the API URL and key if you want sync
+   (**Test connection** checks both).
+4. **Live** → grant Bluetooth and notification permission → **Connect**.
 
-Logging runs in a foreground service, so a drive keeps recording with the screen off.
+Keep the APK? A drive keeps recording in a connected-device foreground service. **Car
+mode** / **Charging** are buttons on the Live tab, not extra nav items.
 
-### Configuring the dashboard
+Companion at home: [`garagepi`](https://github.com/thegliffy/garagepi) takes a snapshot
+when the car is parked. Shared contract: [`garage-telemetry-api`](https://github.com/thegliffy/garage-telemetry-api).
 
-Eight tiles, 2×4 in portrait and 4×2 in landscape. Tap any tile to choose what it shows and
-how it is drawn — number, arc, bidirectional power arc, thermometer, or one of the
-composite tiles (all four tire corners, battery hi/low temperature, front and rear motor,
-cabin and outside thermometers).
+## Tiles
 
-**Car mode** and **Charging** (buttons on the Live tab) are full-screen layouts: car mode
-is the same tiles in landscape, fitted to one screen and held awake; charging is the DC
-fast-charge charts (SOC, kW, pack V, battery temps).
+Tap a tile to choose the signal and how it is drawn: number, arc, bidirectional power
+arc, thermometer, battery hi/low, four-corner tires, front/rear motors, or cabin and
+outside on one tile.
 
-## Calibration
+Speed and odometer offsets shipped calibrated. The Calibrate tab is hidden; restore
+`ROUTE_CALIBRATION` in `ui/GarageNavHost.kt` if a decode ever goes wrong.
 
-The odometer and speed byte offsets are not published for this car, and guessing them has
-produced wrong decoders twice. The **Calibrate** tab instead derives them from the car:
-type what the dash reads, take a sample, then take a second sample at a different value to
-eliminate coincidences. Both are already calibrated and shipped as defaults; a saved
-calibration overrides the built-in offset, so a bad decode can be fixed without a rebuild.
+## Data and sync
 
-The tab is hidden by default now that both are done — see `ROUTE_CALIBRATION` in
-`ui/GarageNavHost.kt` to restore it.
+Every sample is written to Room first. Sync is a WorkManager job that retries when the
+ingest host is reachable, so leaving home wifi does not drop a drive. Settings shows
+what is waiting and has **Sync now**.
 
-## Data
+Retention: 1 month, 1 year, until uploaded, or keep forever. Age limits delete a drive
+even if it never reached the server — the screen says so.
 
-Every sample lands in Room first; sync is a background job that retries when the endpoint
-becomes reachable, so driving away from home loses nothing. **Settings** shows how many
-readings are waiting and offers **Sync now**.
-
-The **History** tab lists each logging stretch as **Drive** or **Charge**. Connecting at a
-DC station, or plugging in mid-drive, closes the current record and starts a Charge one;
-unplugging starts a new Drive. Existing sessions without a kind show as Drive.
-
-Retention is configurable: 1 month, 1 year, indefinite, or until uploaded. The age-based
-options are a strict limit — a drive is deleted once it ages out even if it never reached
-the server — and the settings screen says so.
+Granularity (every poll / 1 s / 2 s / 5 s) thins what is stored and uploaded. Live
+gauges still update every poll.
 
 ## Architecture
 
 ```
-bluetooth/  Elm327Connection    — classic SPP socket, with a connect fallback ladder
-obd/        IoniqUds            — Mode 22 decoders and the poll schedule
-            ObdSession          — init sequence, staggered polling, calibration overrides
-            CalibrationScan     — derives byte offsets from known dash values
-            EfficiencyTracker   — live mi/kWh, trip and rolling 10s
-            TelemetryField      — every displayable value: unit, range, precision
-service/    ObdLoggingService   — foreground service owning the connection and poll loop
-            ObdLoggingState     — process-wide state the UI and car-mode screens observe
-data/       Room entities/DAOs  — TripSessionEntity (drive or charge), ReadingEntity
-            SessionReaper       — closes sessions orphaned by process death
-sync/       GarageApiClient     — HTTP client for the /v1 ingest endpoints
-            SyncWorker          — uploads unsynced readings, retries on backoff
-            RetentionWorker     — applies the retention policy, then VACUUMs
-ui/         dashboard/          — configurable tile grid
-            gauge/              — gauge rendering and per-field style defaults
-            cardash/            — full-screen car mode (one screen)
-            charge/             — full-screen DC fast-charge charts
-            history/            — Drive/Charge list, summary, per-field charts
-tools/      decode_capture.py   — decodes captured frames, finds byte offsets
-            capture.sh          — one-command capture from a connected phone
+bluetooth/   ELM327 classic SPP, connect fallback ladder
+obd/         Mode 22 decoders, poll schedule, sanitizer, efficiency
+service/     foreground logging loop + process-wide UI state
+data/        Room trips (drive | charge) and readings
+sync/        ingest client, WorkManager upload + retention
+ui/          Live tiles, car mode, DC charge, history, settings
 ```
+
+Play listing notes and a privacy draft live in the repo when present
+([`PLAY_STORE.md`](PLAY_STORE.md), [`PRIVACY.md`](PRIVACY.md)). Trademark notes:
+[`NOTICE`](NOTICE).
 
 ## Caveats
 
-- Decoders are specific to the Ioniq 5 (E-GMP). Other cars will connect but produce wrong
-  or missing values.
-- Speed is stored as `SPEED_VMCU` in mph, not the shared `010D` (defined as km/h), to
-  avoid corrupting a series garagepi also writes.
-- Power and regen limits both read 277 kW parked, above the stated 270 maximum — treat as
-  unverified.
-- Energy remaining reads low for a 77.4 kWh pack; worth comparing against the car's own
-  range estimate.
-- Sync talks plain HTTP to a LAN address, and the manifest allows cleartext accordingly.
-- Debug-signed builds only. The debug keystore is public, so that signature proves nothing
-  about origin.
+- Ioniq 5 (E-GMP) only. Other cars will connect and show nonsense.
+- Speed is stored as `SPEED_VMCU` in mph, not shared `010D` (km/h), so it does not
+  collide with garagepi.
+- Power / regen limits have read 277 kW parked — treat as unverified.
+- Energy remaining reads low versus a 77.4 kWh pack; compare against the dash.
+- Release APKs on GitHub are debug-signed. That signature proves nothing about origin.
+  A Play upload needs its own signing key.
+
+## License
+
+[MIT](LICENSE). Hyundai, Ioniq, and IONIQ 5 are trademarks of their owners.

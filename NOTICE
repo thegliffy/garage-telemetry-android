@@ -1,0 +1,24 @@
+# NOTICE
+
+jaryo is unofficial software. Hyundai, Ioniq, IONIQ 5, Kia, and related marks
+are trademarks of their respective owners. This project is not affiliated with,
+endorsed by, or a product of Hyundai Motor Company or Kia Corporation.
+
+## Vehicle telemetry offsets
+
+UDS Mode 22 request IDs, CAN headers, and byte offsets implemented in
+`IoniqUds.kt` were derived from public reverse-engineering of E-GMP OBD
+broadcasts, in particular:
+
+- [Esprit1st/Hyundai-Ioniq-5-Torque-Pro-PIDs](https://github.com/Esprit1st/Hyundai-Ioniq-5-Torque-Pro-PIDs)
+  (no license file as of 2026-08-15)
+- which itself notes an initial base in
+  [JejuSoul/OBD-PIDs-for-HKMC-EVs](https://github.com/JejuSoul/OBD-PIDs-for-HKMC-EVs)
+  (no license file as of 2026-08-15)
+
+This repository does **not** vendor those CSV files. The Kotlin decoders are
+an independent implementation of published CAN encodings, cross-checked against
+captures from a vehicle. Before distributing commercially, confirm the
+upstream authors' terms if you plan to copy their spreadsheets verbatim.
+
+ELM327, Torque Pro, and Android are trademarks of their respective owners.
