@@ -32,7 +32,12 @@ class TelemetryFieldTest {
 
     @Test
     fun `charge flags are booleans`() {
-        listOf(TelemetryFields.HV_CHARGING, TelemetryFields.AC_PLUG, TelemetryFields.CCS_PLUG)
+        listOf(
+            TelemetryFields.HV_CHARGING,
+            TelemetryFields.AC_PLUG,
+            TelemetryFields.CCS_PLUG,
+            TelemetryFields.BATT_HEATER,
+        )
             .forEach { assertTrue("${it.pid} should be boolean", it.isBoolean) }
     }
 
@@ -82,7 +87,7 @@ class TelemetryFieldTest {
     fun `default tile layout fills every slot`() {
         assertTrue(
             "SELECTABLE must cover the default grid",
-            TelemetryFields.SELECTABLE.size >= 10,
+            TelemetryFields.SELECTABLE.size >= 8,
         )
     }
 

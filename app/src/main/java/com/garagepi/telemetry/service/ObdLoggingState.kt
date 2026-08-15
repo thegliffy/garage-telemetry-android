@@ -12,6 +12,17 @@ sealed interface ConnectionState {
     data class Error(val message: String) : ConnectionState
 }
 
+data class ChargeSample(
+    val ts: Long,
+    val soc: Double?,
+    val chargeKw: Double?,
+    val packVoltage: Double?,
+    val battTempMaxC: Double?,
+    val battTempMinC: Double?,
+    val dcCharging: Boolean,
+    val heaterOn: Boolean,
+)
+
 data class LoggingState(
     val connectionState: ConnectionState = ConnectionState.Disconnected,
     /** Latest value per shared reading id (see TelemetryFields). */
@@ -22,6 +33,8 @@ data class LoggingState(
      * instead of requiring the phone tethered to a desktop.
      */
     val calibrationFrames: Map<String, ByteArray> = emptyMap(),
+    val fastCharging: Boolean = false,
+    val chargeSamples: List<ChargeSample> = emptyList(),
 )
 
 /**
@@ -47,5 +60,36 @@ object ObdLoggingState {
         _state.update { it.copy(calibrationFrames = it.calibrationFrames + frames) }
     }
 
-    fun clearValues() = _state.update { it.copy(latestValues = emptyMap()) }
+    fun clearValues() = _state.update {
+        it.copy(
+            latestValues = emptyMap(),
+            fastCharging = false,
+            chargeSamples = emptyList(),
+        )
+    }
+
+    fun setFastCharging(active: Boolean) {
+        _state.update { current ->
+            if (current.fastCharging == active && (!active || current.chargeSamples.isNotEmpty())) {
+                return@update current
+            }
+            current.copy(
+                fastCharging = active,
+                chargeSamples = if (active && !current.fastCharging) emptyList() else current.chargeSamples,
+            )
+        }
+    }
+
+    fun appendChargeSample(sample: ChargeSample) = _state.update { current ->
+        val next = current.chargeSamples + sample
+        current.copy(
+            chargeSamples = if (next.size > CHARGE_SAMPLE_CAP) {
+                next.subList(next.size - CHARGE_SAMPLE_CAP, next.size)
+            } else {
+                next
+            },
+        )
+    }
+
+    private const val CHARGE_SAMPLE_CAP = 1_800
 }

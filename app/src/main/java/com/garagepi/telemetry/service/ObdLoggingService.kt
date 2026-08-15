@@ -23,6 +23,7 @@ import com.garagepi.telemetry.data.ReadingEntity
 import com.garagepi.telemetry.data.TelemetryDatabase
 import com.garagepi.telemetry.data.TripSessionEntity
 import com.garagepi.telemetry.obd.EfficiencyTracker
+import com.garagepi.telemetry.obd.FastChargeDetector
 import com.garagepi.telemetry.obd.ObdSession
 import com.garagepi.telemetry.obd.TelemetryFields
 import com.garagepi.telemetry.sync.AppSettings
@@ -51,6 +52,9 @@ private const val NOTIFICATION_ID = 1
  */
 private const val POLL_INTERVAL_MS = 200L
 
+/** Extra wait while DCFC so 220101/220105 run as fast as the adapter allows. */
+private const val CHARGE_POLL_INTERVAL_MS = 50L
+
 /**
  * Consecutive empty polls treated as "the car powered off".
  *
@@ -77,6 +81,7 @@ class ObdLoggingService : Service() {
 
     /** Reset per session, so "trip" efficiency means this drive rather than all time. */
     private val efficiency = EfficiencyTracker()
+    private val chargeDetector = FastChargeDetector()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -138,6 +143,7 @@ class ObdLoggingService : Service() {
             tripId = db.tripSessionDao().insert(TripSessionEntity(startedAt = System.currentTimeMillis()))
             settings.lastDeviceAddress = address
             efficiency.reset()
+            chargeDetector.reset()
 
             val label = device.name ?: device.address
             ObdLoggingState.setConnection(ConnectionState.Connected(label))
@@ -168,9 +174,10 @@ class ObdLoggingService : Service() {
 
     private suspend fun pollUntilPowerOff(session: ObdSession, tripId: Long, label: String) {
         var emptyPolls = 0
+        var lastPersistAt = 0L
 
         while (currentCoroutineContext().isActive) {
-            val result = session.pollOnce()
+            val result = session.pollOnce(chargeFocus = chargeDetector.active)
             val readings = result.readings
             ObdLoggingState.mergeCalibrationFrames(result.calibrationFrames)
 
@@ -194,21 +201,80 @@ class ObdLoggingService : Service() {
                     efficiency.currentEfficiency()?.let { values[TelemetryFields.EFF_NOW.pid] = it }
                 }
 
+                val heaterOn = FastChargeDetector.heaterOn(
+                    values[TelemetryFields.HEATER_TEMP.pid],
+                    values[TelemetryFields.BATT_TEMP.pid],
+                )
+                values[TelemetryFields.BATT_HEATER.pid] = if (heaterOn) 1.0 else 0.0
+                chargeDetector.update(values)
+
                 ObdLoggingState.mergeValues(values)
-                db.readingDao().insertAll(
-                    readings.map {
+                ObdLoggingState.setFastCharging(chargeDetector.active)
+                if (chargeDetector.active) {
+                    ObdLoggingState.appendChargeSample(
+                        ChargeSample(
+                            ts = readings.maxOf { it.timestampMs },
+                            soc = values[TelemetryFields.HV_SOC.pid],
+                            chargeKw = power?.let { (-it).coerceAtLeast(0.0) },
+                            packVoltage = values[TelemetryFields.PACK_VOLTAGE.pid],
+                            battTempMaxC = values[TelemetryFields.BATT_TEMP.pid],
+                            battTempMinC = values[TelemetryFields.BATT_TEMP_MIN.pid],
+                            dcCharging = (values[TelemetryFields.CCS_PLUG.pid] ?: 0.0) >= 0.5
+                                || (power != null && power <= FastChargeDetector.DC_POWER_KW),
+                            heaterOn = heaterOn,
+                        ),
+                    )
+                }
+                // Persist derived efficiency with the poll row so history charts and sync
+                // see EFF_SESSION / EFF_10S — they are UI-only if left out of insertAll.
+                val pollTs = readings.maxOf { it.timestampMs }
+                val granularity = settings.loggingGranularity
+                if (chargeDetector.active || granularity.shouldPersist(pollTs, lastPersistAt)) {
+                    val toStore = readings.map {
                         ReadingEntity(
                             tripSessionId = tripId,
                             ts = it.timestampMs,
                             pid = it.pid,
                             value = it.value,
                         )
-                    },
-                )
+                    }.toMutableList()
+                    values[TelemetryFields.EFF_SESSION.pid]?.let { v ->
+                        toStore.add(
+                            ReadingEntity(
+                                tripSessionId = tripId,
+                                ts = pollTs,
+                                pid = TelemetryFields.EFF_SESSION.pid,
+                                value = v,
+                            ),
+                        )
+                    }
+                    values[TelemetryFields.EFF_NOW.pid]?.let { v ->
+                        toStore.add(
+                            ReadingEntity(
+                                tripSessionId = tripId,
+                                ts = pollTs,
+                                pid = TelemetryFields.EFF_NOW.pid,
+                                value = v,
+                            ),
+                        )
+                    }
+                    values[TelemetryFields.BATT_HEATER.pid]?.let { v ->
+                        toStore.add(
+                            ReadingEntity(
+                                tripSessionId = tripId,
+                                ts = pollTs,
+                                pid = TelemetryFields.BATT_HEATER.pid,
+                                value = v,
+                            ),
+                        )
+                    }
+                    db.readingDao().insertAll(toStore)
+                    lastPersistAt = pollTs
+                }
                 updateNotification("Logging from $label", values)
             }
 
-            delay(POLL_INTERVAL_MS)
+            delay(if (chargeDetector.active) CHARGE_POLL_INTERVAL_MS else POLL_INTERVAL_MS)
         }
     }
 

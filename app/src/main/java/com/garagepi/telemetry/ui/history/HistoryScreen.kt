@@ -82,11 +82,13 @@ fun HistoryScreen(viewModel: HistoryViewModel = viewModel()) {
         val fahrenheit = remember { AppSettings(context).temperatureInFahrenheit }
         TelemetryFields.CHART_FIELDS.forEach { raw ->
             val field = Units.forDisplay(raw, fahrenheit)
-            val series = readings
-                .filter { it.pid == field.pid }
-                // Stored Celsius, shown in whatever the setting says — the axis labels come
-                // from the same converted values, so the scale follows automatically.
-                .map { it.ts to if (fahrenheit && raw.isTemperature) Units.celsiusToFahrenheit(it.value) else it.value }
+            val series = ChartSeries.downsample(
+                readings
+                    .filter { it.pid == field.pid }
+                    // Stored Celsius, shown in whatever the setting says — the axis labels come
+                    // from the same converted values, so the scale follows automatically.
+                    .map { it.ts to if (fahrenheit && raw.isTemperature) Units.celsiusToFahrenheit(it.value) else it.value },
+            )
             if (series.isNotEmpty()) {
                 Text(
                     text = "${field.label} (${field.unit})",

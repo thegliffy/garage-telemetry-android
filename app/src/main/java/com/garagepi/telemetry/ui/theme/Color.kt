@@ -12,3 +12,4 @@ val GarageBackgroundLight = Color(0xFFFAFAFA)
 // on the light background and still read clearly in a sunlit car.
 val DischargeRed = Color(0xFFC62828)
 val ChargeGreen = Color(0xFF2E7D32)
+val BatteryTempLowBlue = Color(0xFF1565C0)

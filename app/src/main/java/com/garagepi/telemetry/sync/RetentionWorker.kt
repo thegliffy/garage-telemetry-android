@@ -37,11 +37,18 @@ class RetentionWorker(context: Context, params: WorkerParameters) : CoroutineWor
 
         if (deleted > 0) {
             Log.i(TAG, "deleted $deleted session(s) under policy $policy")
-            // SQLite keeps freed pages in the file; without VACUUM the database never
-            // shrinks on disk no matter how much is deleted.
-            runCatching { db.openHelper.writableDatabase.execSQL("VACUUM") }
-                .onFailure { Log.w(TAG, "VACUUM failed: ${it.message}") }
+            // Only VACUUM after a meaningful purge — a single-session delete still frees
+            // pages, but exclusive VACUUM on tiny cleanups is not worth hitching logging.
+            if (deleted >= VACUUM_AFTER_DELETED) {
+                runCatching { db.openHelper.writableDatabase.execSQL("VACUUM") }
+                    .onFailure { Log.w(TAG, "VACUUM failed: ${it.message}") }
+            }
         }
         return Result.success()
+    }
+
+    companion object {
+        /** Skip VACUUM for tiny deletions; daily/manual cleanup of several trips still shrinks. */
+        const val VACUUM_AFTER_DELETED = 3
     }
 }

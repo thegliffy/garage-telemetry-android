@@ -65,6 +65,7 @@ object PidMap {
         "HV_CHARGING" to "HV_CHARGING",
         "AC_PLUG" to "AC_PLUG",
         "CCS_PLUG" to "CCS_PLUG",
+        "BATT_HEATER" to "BATT_HEATER",
     )
 
     /**

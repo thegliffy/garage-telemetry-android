@@ -80,10 +80,10 @@ fun DashboardScreen(
     // keeps showing "no adapter" after one has just been picked.
     LaunchedEffect(Unit) { viewModel.refresh() }
 
-    // Landscape gets the 5-wide layout; in portrait five columns would be ~70dp each,
-    // too narrow for a value plus its label.
+    // Landscape gets the 4-wide layout; in portrait keep two columns so each tile
+    // still has room for a value plus its label.
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val columns = if (landscape) 5 else 2
+    val columns = if (landscape) 4 else 2
 
     Column(
         modifier = Modifier

@@ -36,8 +36,10 @@ private const val MAX_PLOT_POINTS = 600
 fun LineChart(
     points: List<Pair<Long, Double>>,
     unit: String,
-    modifier: Modifier = Modifier,
+    modifier: Modifier = Modifier.height(170.dp),
     lineColor: Color = MaterialTheme.colorScheme.primary,
+    extraPoints: List<Pair<Long, Double>> = emptyList(),
+    extraLineColor: Color = MaterialTheme.colorScheme.tertiary,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -45,16 +47,16 @@ fun LineChart(
     val labelStyle = TextStyle(fontSize = 10.sp, color = axisColor)
 
     val plotted = remember(points) { downsample(points, MAX_PLOT_POINTS) }
+    val extraPlotted = remember(extraPoints) { downsample(extraPoints, MAX_PLOT_POINTS) }
 
     Canvas(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(170.dp),
+        modifier = modifier.fillMaxWidth(),
     ) {
-        if (plotted.size < 2) return@Canvas
+        val series = plotted + extraPlotted
+        if (plotted.size < 2 && extraPlotted.size < 2) return@Canvas
 
-        val minY = plotted.minOf { it.second }
-        val maxY = plotted.maxOf { it.second }
+        val minY = series.minOf { it.second }
+        val maxY = series.maxOf { it.second }
         // A flat series would otherwise divide by zero and draw nothing.
         val spanY = (maxY - minY).takeIf { it > 1e-9 } ?: 1.0
         val padded = spanY * 0.1
@@ -86,15 +88,27 @@ fun LineChart(
             drawLine(axisColor, Offset(leftPad, zero), Offset(size.width, zero), strokeWidth = 2f)
         }
 
-        val minX = plotted.first().first
-        val spanX = (plotted.last().first - minX).coerceAtLeast(1L).toFloat()
+        val minX = listOfNotNull(plotted.firstOrNull()?.first, extraPlotted.firstOrNull()?.first).minOrNull()
+            ?: return@Canvas
+        val maxX = listOfNotNull(plotted.lastOrNull()?.first, extraPlotted.lastOrNull()?.first).maxOrNull()
+            ?: return@Canvas
+        val spanX = (maxX - minX).coerceAtLeast(1L).toFloat()
         fun xFor(ts: Long) = leftPad + ((ts - minX).toFloat() / spanX) * plotW
 
-        val path = Path().apply {
-            moveTo(xFor(plotted.first().first), yFor(plotted.first().second))
-            plotted.drop(1).forEach { lineTo(xFor(it.first), yFor(it.second)) }
+        if (plotted.size >= 2) {
+            val path = Path().apply {
+                moveTo(xFor(plotted.first().first), yFor(plotted.first().second))
+                plotted.drop(1).forEach { lineTo(xFor(it.first), yFor(it.second)) }
+            }
+            drawPath(path, lineColor, style = Stroke(width = 2.5f))
         }
-        drawPath(path, lineColor, style = Stroke(width = 2.5f))
+        if (extraPlotted.size >= 2) {
+            val path = Path().apply {
+                moveTo(xFor(extraPlotted.first().first), yFor(extraPlotted.first().second))
+                extraPlotted.drop(1).forEach { lineTo(xFor(it.first), yFor(it.second)) }
+            }
+            drawPath(path, extraLineColor, style = Stroke(width = 2.5f))
+        }
 
         drawAxisLabels(textMeasurer, labelStyle, leftPad, plotH, bottomPad, spanX, unit)
     }

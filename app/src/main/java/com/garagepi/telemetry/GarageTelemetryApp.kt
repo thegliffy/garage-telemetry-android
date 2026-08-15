@@ -8,8 +8,8 @@ class GarageTelemetryApp : Application() {
         super.onCreate()
         SyncScheduler.schedulePeriodic(this)
         SyncScheduler.scheduleRetention(this)
-        // Close any session orphaned by the process being killed mid-drive, and apply
-        // retention now rather than waiting up to a day for the periodic pass.
-        SyncScheduler.triggerRetentionNow(this)
+        // Do not run RetentionWorker (and its VACUUM) on every cold start — that can
+        // hitch UI/logging. Orphans are reaped by SyncWorker; Settings still has
+        // "Run cleanup now". Daily periodic retention remains scheduled above.
     }
 }

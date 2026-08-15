@@ -39,7 +39,9 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             try {
                 syncTrip(trip, db, client)
             } catch (e: Exception) {
-                Log.w(TAG, "sync trip ${trip.id} failed: ${e.message}")
+                // Include the throwable so Logcat keeps the HTTP body from
+                // GarageApiClient ("HTTP 422 …: {…}") plus the stack.
+                Log.w(TAG, "sync trip ${trip.id} failed: ${e.message}", e)
                 hadFailure = true
             }
         }
@@ -50,6 +52,12 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         var trip = tripIn
 
         if (trip.remoteSessionId == null) {
+            // Another worker may have finished create+Room while we were queued.
+            db.tripSessionDao().getById(trip.id)?.remoteSessionId?.let { existing ->
+                trip = trip.copy(remoteSessionId = existing)
+            }
+        }
+        if (trip.remoteSessionId == null) {
             val response = client.createSession(
                 SessionCreateRequest(
                     source = "android",
@@ -57,6 +65,8 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
                     meta = mapOf("local_trip_id" to trip.id.toString()),
                 ),
             )
+            // Persist before readings: a kill between HTTP 200 and this write used to
+            // create a second Postgres session on retry. API also reuses local_trip_id.
             trip = trip.copy(remoteSessionId = response.id)
             db.tripSessionDao().update(trip)
         }

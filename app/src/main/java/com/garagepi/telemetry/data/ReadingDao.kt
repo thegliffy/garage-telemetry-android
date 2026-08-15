@@ -13,6 +13,19 @@ interface ReadingDao {
     @Query("SELECT * FROM readings WHERE tripSessionId = :tripId ORDER BY ts ASC")
     fun observeForTrip(tripId: Long): Flow<List<ReadingEntity>>
 
+    /**
+     * History UI only needs chart + summary PIDs — loading every Mode 22 sample for a
+     * long drive (~2 Hz × dozens of pids) is too large for the main-thread Flow.
+     */
+    @Query(
+        "SELECT * FROM readings WHERE tripSessionId = :tripId AND pid IN (:pids) " +
+            "ORDER BY ts ASC",
+    )
+    fun observeForTripPids(tripId: Long, pids: List<String>): Flow<List<ReadingEntity>>
+
+    @Query("SELECT COUNT(*) FROM readings WHERE tripSessionId = :tripId")
+    fun observeCountForTrip(tripId: Long): Flow<Int>
+
     @Query(
         "SELECT * FROM readings WHERE tripSessionId = :tripId AND uploaded = 0 " +
             "ORDER BY ts ASC LIMIT :limit",

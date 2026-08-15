@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
@@ -13,6 +14,7 @@ import java.util.concurrent.TimeUnit
 
 object SyncScheduler {
     private const val PERIODIC_WORK_NAME = "garage-telemetry-sync-periodic"
+    private const val ONE_SHOT_WORK_NAME = "garage-telemetry-sync-once"
     private const val RETENTION_WORK_NAME = "garage-telemetry-retention-daily"
 
     /** Background safety net — catches trips that finished while offline. */
@@ -25,12 +27,17 @@ object SyncScheduler {
             .enqueueUniquePeriodicWork(PERIODIC_WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
     }
 
-    /** Called right after a trip ends (or the dashboard reconnects) for a prompt upload attempt. */
+    /**
+     * Called right after a trip ends (or Settings "Sync now") for a prompt upload.
+     * Unique + KEEP so endTrip + periodic + Sync now cannot race two createSession calls.
+     */
     fun triggerNow(context: Context) {
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(networkConstraints())
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, WorkRequest.MIN_BACKOFF_MILLIS, TimeUnit.MILLISECONDS)
             .build()
-        WorkManager.getInstance(context).enqueue(request)
+        WorkManager.getInstance(context)
+            .enqueueUniqueWork(ONE_SHOT_WORK_NAME, ExistingWorkPolicy.KEEP, request)
     }
 
     /** Daily retention pass. No network constraint — deletion is purely local. */

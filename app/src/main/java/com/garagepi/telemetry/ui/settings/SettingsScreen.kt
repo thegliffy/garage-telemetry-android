@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.garagepi.telemetry.data.LoggingGranularity
 import com.garagepi.telemetry.data.RetentionPolicy
 import com.garagepi.telemetry.ui.missingPermissions
 
@@ -195,6 +196,26 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
 
         HorizontalDivider()
 
+        Text(text = "Data granularity", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = "How often samples are saved to the phone and uploaded. Live gauges still " +
+                "update every poll; coarser settings only thin the log. Takes effect on the " +
+                "next sample — no reconnect needed.",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+
+        Column(Modifier.selectableGroup()) {
+            LoggingGranularity.entries.forEach { granularity ->
+                GranularityOption(
+                    granularity = granularity,
+                    selected = uiState.loggingGranularity == granularity,
+                    onSelect = { viewModel.selectLoggingGranularity(granularity) },
+                )
+            }
+        }
+
+        HorizontalDivider()
+
         Text(text = "Data retention", style = MaterialTheme.typography.headlineMedium)
         Text(
             text = "A session is one drive: from connecting to the adapter until the car " +
@@ -243,6 +264,27 @@ fun SettingsScreen(viewModel: SettingsViewModel = viewModel()) {
             enabled = !uiState.cleanupRunning,
         ) {
             Text(if (uiState.cleanupRunning) "Cleaning up…" else "Run cleanup now")
+        }
+    }
+}
+
+@Composable
+private fun GranularityOption(
+    granularity: LoggingGranularity,
+    selected: Boolean,
+    onSelect: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onSelect)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        RadioButton(selected = selected, onClick = onSelect)
+        Column(Modifier.padding(start = 8.dp)) {
+            Text(text = granularity.label, style = MaterialTheme.typography.bodyLarge)
+            Text(text = granularity.description, style = MaterialTheme.typography.labelSmall)
         }
     }
 }

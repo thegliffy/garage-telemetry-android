@@ -96,6 +96,8 @@ object TelemetryFields {
     val HEATER_TEMP = TelemetryField(
         "HEATER_TEMP_C", "Batt Heater", "°C", min = -40.0, max = 80.0, decimals = 0,
     )
+    /** Derived: heater element temp well above pack max. There is no on/off bit in Mode 22. */
+    val BATT_HEATER = TelemetryField("BATT_HEATER", "Battery Heater", "", isBoolean = true)
 
     /** Anchor for the two-pane motor tile; the renderer looks up the rear itself. */
     val MOTOR_RPM_FRONT = TelemetryField(
@@ -192,6 +194,7 @@ object TelemetryFields {
         HV_CHARGING,
         AC_PLUG,
         CCS_PLUG,
+        BATT_HEATER,
         SPEED_CLUSTER,
     )
 

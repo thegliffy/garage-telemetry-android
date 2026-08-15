@@ -28,7 +28,11 @@ data class TripSummary(
         distanceMiles?.let { miles -> if (netEnergyKwh > 0.05) miles / netEnergyKwh else null }
 
     companion object {
-        fun from(trip: TripSessionEntity, readings: List<ReadingEntity>): TripSummary {
+        fun from(
+            trip: TripSessionEntity,
+            readings: List<ReadingEntity>,
+            sampleCount: Int = readings.size,
+        ): TripSummary {
             val end = trip.endedAt ?: readings.maxOfOrNull { it.ts } ?: trip.startedAt
 
             val soc = readings.filter { it.pid == TelemetryFields.HV_SOC.pid }.sortedBy { it.ts }
@@ -64,7 +68,7 @@ data class TripSummary(
                 energyUsedKwh = used,
                 energyRegenKwh = regen,
                 distanceMiles = distance,
-                sampleCount = readings.size,
+                sampleCount = sampleCount,
             )
         }
     }

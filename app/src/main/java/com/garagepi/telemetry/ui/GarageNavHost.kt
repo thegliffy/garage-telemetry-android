@@ -5,13 +5,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -19,7 +20,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.garagepi.telemetry.ui.calibration.CalibrationScreen
+import com.garagepi.telemetry.service.ObdLoggingState
+import com.garagepi.telemetry.ui.charge.ChargeScreen
 import com.garagepi.telemetry.ui.cardash.CarDashScreen
 import com.garagepi.telemetry.ui.dashboard.DashboardScreen
 import com.garagepi.telemetry.ui.history.HistoryScreen
@@ -41,18 +43,30 @@ private const val ROUTE_SETTINGS = "settings"
 /** Full-screen car mode. Not a bottom-nav entry — it is a mode, not a section. */
 private const val ROUTE_CAR_DASH = "cardash"
 
+/** Full-screen DCFC charts. Opened from live logging, not from the nav bar. */
+private const val ROUTE_CHARGE = "charge"
+
 @Composable
 fun GarageNavHost() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
-    // Car mode takes the whole screen; a nav bar would waste height and invite taps
-    // while driving.
-    val inCarDash = currentDestination?.route == ROUTE_CAR_DASH
+    val logging by ObdLoggingState.state.collectAsState()
+    val inFullScreen = currentDestination?.route == ROUTE_CAR_DASH ||
+        currentDestination?.route == ROUTE_CHARGE
+
+    LaunchedEffect(logging.fastCharging) {
+        val onCharge = navController.currentDestination?.route == ROUTE_CHARGE
+        if (logging.fastCharging && !onCharge) {
+            navController.navigate(ROUTE_CHARGE) { launchSingleTop = true }
+        } else if (!logging.fastCharging && onCharge) {
+            navController.popBackStack()
+        }
+    }
 
     Scaffold(
         bottomBar = {
-            if (inCarDash) return@Scaffold
+            if (inFullScreen) return@Scaffold
 
             NavigationBar {
                 NavigationBarItem(
@@ -87,6 +101,9 @@ fun GarageNavHost() {
             composable(ROUTE_HISTORY) { HistoryScreen() }
             composable(ROUTE_SETTINGS) { SettingsScreen() }
             composable(ROUTE_CAR_DASH) { CarDashScreen() }
+            composable(ROUTE_CHARGE) {
+                ChargeScreen(onDismiss = { navController.popBackStack() })
+            }
         }
     }
 }

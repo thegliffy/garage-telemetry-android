@@ -1,6 +1,7 @@
 package com.garagepi.telemetry.sync
 
 import android.content.Context
+import com.garagepi.telemetry.data.LoggingGranularity
 import com.garagepi.telemetry.data.RetentionPolicy
 import com.garagepi.telemetry.obd.CalibratedField
 import com.garagepi.telemetry.obd.CandidateSpec
@@ -27,6 +28,14 @@ class AppSettings(context: Context) {
     var retentionPolicy: RetentionPolicy
         get() = RetentionPolicy.fromName(prefs.getString(KEY_RETENTION, null))
         set(value) = prefs.edit().putString(KEY_RETENTION, value.name).apply()
+
+    /**
+     * How often poll results are written to Room / uploaded. Live gauges ignore this and
+     * still update every cycle. Unknown stored values fall back to [LoggingGranularity.DEFAULT].
+     */
+    var loggingGranularity: LoggingGranularity
+        get() = LoggingGranularity.fromName(prefs.getString(KEY_GRANULARITY, null))
+        set(value) = prefs.edit().putString(KEY_GRANULARITY, value.name).apply()
 
     /** Byte layout confirmed in the calibration screen, or null while uncalibrated. */
     var odometerSpec: CandidateSpec?
@@ -83,14 +92,15 @@ class AppSettings(context: Context) {
     }
 
     companion object {
-        /** Tiles on the main dashboard: 2x5 in portrait, 5x2 in landscape. */
-        const val TILE_COUNT = 10
+        /** Tiles on the main dashboard: 2x4 in portrait, 4x2 in landscape. */
+        const val TILE_COUNT = 8
         private const val TILE_DELIMITER = ","
 
         const val KEY_BASE_URL = "base_url"
         const val KEY_API_KEY = "api_key"
         const val KEY_DEVICE_ADDRESS = "last_device_address"
         const val KEY_RETENTION = "retention_policy"
+        const val KEY_GRANULARITY = "logging_granularity"
         const val KEY_TILES = "dashboard_tiles"
         const val KEY_ODOMETER_SPEC = "odometer_spec"
         const val KEY_SPEED_SPEC = "speed_spec"

@@ -51,7 +51,12 @@ class ObdSession(
     private var cycle = 0L
     private var currentHeader: String? = null
 
-    suspend fun pollOnce(): PollResult {
+    /**
+     * @param chargeFocus skip speed/tires/climate so 220101 + 220105 run every cycle —
+     *   SOC, pack power/voltage/temps, CCS bit, and heater temp update as fast as the
+     *   link allows while DC charging.
+     */
+    suspend fun pollOnce(chargeFocus: Boolean = false): PollResult {
         val now = System.currentTimeMillis()
         val readings = mutableListOf<PidReading>()
         val frames = mutableMapOf<String, ByteArray>()
@@ -60,7 +65,11 @@ class ObdSession(
         // Standard Mode 01 speed (010D) is not polled: this car answers NO DATA for it,
         // so it only cost a round trip per cycle. Speed comes from the VMCU instead.
         for (query in IoniqUds.QUERIES) {
-            if (thisCycle % query.everyNCycles != 0L) continue
+            if (chargeFocus) {
+                if (query.requestHex !in CHARGE_FOCUS_REQUESTS) continue
+            } else if (thisCycle % query.everyNCycles != 0L) {
+                continue
+            }
 
             // 220101 and 220105 share header 7E4; re-sending AT SH between them is a
             // wasted round trip on a link where every round trip costs ~200 ms.
@@ -105,6 +114,10 @@ class ObdSession(
     }
 
     fun close() = connection.close()
+
+    companion object {
+        private val CHARGE_FOCUS_REQUESTS = setOf("220101", "220105")
+    }
 }
 
 /** A calibration the user confirmed in-app: which bytes to read and what to call the result. */

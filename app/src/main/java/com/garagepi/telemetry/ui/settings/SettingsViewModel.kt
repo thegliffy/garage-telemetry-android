@@ -8,6 +8,7 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.garagepi.telemetry.data.LoggingGranularity
 import com.garagepi.telemetry.data.RetentionPolicy
 import com.garagepi.telemetry.data.TelemetryDatabase
 import com.garagepi.telemetry.sync.AppSettings
@@ -26,6 +27,7 @@ data class SettingsUiState(
     val baseUrl: String = "",
     val apiKey: String = "",
     val retentionPolicy: RetentionPolicy = RetentionPolicy.DEFAULT,
+    val loggingGranularity: LoggingGranularity = LoggingGranularity.DEFAULT,
     val syncConfigured: Boolean = false,
     val sessionCount: Int = 0,
     val readingCount: Int = 0,
@@ -52,6 +54,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             baseUrl = settings.baseUrl,
             apiKey = settings.apiKey,
             retentionPolicy = settings.retentionPolicy,
+            loggingGranularity = settings.loggingGranularity,
             syncConfigured = settings.syncConfigured,
             selectedDeviceAddress = settings.lastDeviceAddress,
             fahrenheit = settings.temperatureInFahrenheit,
@@ -144,6 +147,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun selectRetentionPolicy(policy: RetentionPolicy) {
         settings.retentionPolicy = policy
         _uiState.value = _uiState.value.copy(retentionPolicy = policy)
+    }
+
+    /** Applied immediately — the logging service re-reads this each poll cycle. */
+    fun selectLoggingGranularity(granularity: LoggingGranularity) {
+        settings.loggingGranularity = granularity
+        _uiState.value = _uiState.value.copy(loggingGranularity = granularity)
     }
 
     /**
