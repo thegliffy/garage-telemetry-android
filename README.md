@@ -36,30 +36,14 @@ Logging runs in a foreground service, so a drive keeps recording with the screen
 
 ### Configuring the dashboard
 
-Ten tiles, 2×5 in portrait and 5×2 in landscape. Tap any tile to choose what it shows and
+Eight tiles, 2×4 in portrait and 4×2 in landscape. Tap any tile to choose what it shows and
 how it is drawn — number, arc, bidirectional power arc, thermometer, or one of the
-composite tiles (all four tire corners, battery hi/low temperature, front and rear motor).
+composite tiles (all four tire corners, battery hi/low temperature, front and rear motor,
+cabin and outside thermometers).
 
-**Car mode** (button on the Live tab) is the same layout full-screen in landscape with the
-screen held awake, for a phone mounted in the car.
-
-## Android Auto
-
-jaryo has an Android Auto surface, but **it will not appear in the car until you enable
-developer mode on the phone**. Android Auto ignores any app it did not get from Play, and
-gives no indication why.
-
-1. Open Android Auto settings (Settings → Connected devices → Android Auto, or the
-   standalone app).
-2. Tap **Version** about ten times until it offers developer mode, and accept.
-3. **⋮** → **Developer settings** → enable **Unknown sources**.
-4. Reconnect the cable.
-
-If it still does not show, clear Android Auto's cache (Settings → Apps → Android Auto →
-Storage → Clear cache) — it caches its app list and often misses a newly sideloaded app.
-
-The car screen is limited to templated rows by Google: no charts or gauges are possible
-there, only text. That restriction is the platform's, not a shortcut.
+**Car mode** and **Charging** (buttons on the Live tab) are full-screen layouts: car mode
+is the same tiles in landscape, fitted to one screen and held awake; charging is the DC
+fast-charge charts (SOC, kW, pack V, battery temps).
 
 ## Calibration
 
@@ -78,6 +62,10 @@ Every sample lands in Room first; sync is a background job that retries when the
 becomes reachable, so driving away from home loses nothing. **Settings** shows how many
 readings are waiting and offers **Sync now**.
 
+The **History** tab lists each logging stretch as **Drive** or **Charge**. Connecting at a
+DC station, or plugging in mid-drive, closes the current record and starts a Charge one;
+unplugging starts a new Drive. Existing sessions without a kind show as Drive.
+
 Retention is configurable: 1 month, 1 year, indefinite, or until uploaded. The age-based
 options are a strict limit — a drive is deleted once it ages out even if it never reached
 the server — and the settings screen says so.
@@ -92,17 +80,17 @@ obd/        IoniqUds            — Mode 22 decoders and the poll schedule
             EfficiencyTracker   — live mi/kWh, trip and rolling 10s
             TelemetryField      — every displayable value: unit, range, precision
 service/    ObdLoggingService   — foreground service owning the connection and poll loop
-            ObdLoggingState     — process-wide state the UI and car screens observe
-data/       Room entities/DAOs  — TripSessionEntity (one drive), ReadingEntity (samples)
+            ObdLoggingState     — process-wide state the UI and car-mode screens observe
+data/       Room entities/DAOs  — TripSessionEntity (drive or charge), ReadingEntity
             SessionReaper       — closes sessions orphaned by process death
 sync/       GarageApiClient     — HTTP client for the /v1 ingest endpoints
             SyncWorker          — uploads unsynced readings, retries on backoff
             RetentionWorker     — applies the retention policy, then VACUUMs
-car/        TelemetryCarAppService — Android Auto templated readout
 ui/         dashboard/          — configurable tile grid
             gauge/              — gauge rendering and per-field style defaults
-            cardash/            — full-screen car mode
-            history/            — trip list, summary, per-field charts
+            cardash/            — full-screen car mode (one screen)
+            charge/             — full-screen DC fast-charge charts
+            history/            — Drive/Charge list, summary, per-field charts
 tools/      decode_capture.py   — decodes captured frames, finds byte offsets
             capture.sh          — one-command capture from a connected phone
 ```

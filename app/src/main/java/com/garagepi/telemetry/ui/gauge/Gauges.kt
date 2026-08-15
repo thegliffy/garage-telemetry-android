@@ -25,6 +25,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.garagepi.telemetry.obd.TelemetryField
 import com.garagepi.telemetry.obd.TelemetryFields
+import com.garagepi.telemetry.ui.theme.BatteryTempLowBlue
+import com.garagepi.telemetry.ui.theme.CabinOrange
 import com.garagepi.telemetry.ui.theme.ChargeGreen
 import com.garagepi.telemetry.ui.theme.DischargeRed
 import kotlin.math.abs
@@ -53,7 +55,7 @@ fun TileContent(
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
-            text = field.label,
+            text = if (style == TileStyle.CLIMATE_PAIR) "Cabin / Outside" else field.label,
             style = MaterialTheme.typography.labelSmall,
             color = textColor.copy(alpha = 0.7f),
             maxLines = 1,
@@ -67,6 +69,7 @@ fun TileContent(
             TileStyle.BATT_TEMP_PAIR -> BatteryTempPair(field, values, compact, textColor, trackColor)
             TileStyle.TIRE_QUAD -> TireQuad(field, values, compact, textColor)
             TileStyle.MOTOR_PAIR -> MotorPair(field, values, compact, textColor, trackColor)
+            TileStyle.CLIMATE_PAIR -> ClimatePair(field, values, compact, textColor, trackColor)
         }
     }
 }
@@ -181,6 +184,55 @@ private fun MotorPair(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClimatePair(
+    field: TelemetryField,
+    values: Map<String, Double>,
+    compact: Boolean,
+    textColor: Color,
+    trackColor: Color,
+) {
+    val rows = listOf(
+        Triple("Cabin", values[TelemetryFields.INDOOR_TEMP.pid], CabinOrange),
+        Triple("Outside", values[TelemetryFields.OUTDOOR_TEMP.pid], BatteryTempLowBlue),
+    )
+    val barHeight = if (compact) 22.dp else 32.dp
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 6.dp),
+    ) {
+        rows.forEach { (tag, value, color) ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = tag,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = textColor.copy(alpha = 0.6f),
+                )
+                Text(
+                    text = value?.let { "${format(it, field.decimals)}${field.unit}" } ?: "--",
+                    style = if (compact) {
+                        MaterialTheme.typography.bodyLarge
+                    } else {
+                        MaterialTheme.typography.titleMedium
+                    },
+                    fontWeight = FontWeight.SemiBold,
+                    color = color,
+                    maxLines = 1,
+                )
+            }
+            Canvas(modifier = Modifier.fillMaxWidth().height(barHeight)) {
+                val fraction = value?.let { fractionOf(it, field.min, field.max) }
+                drawThermometerTrack(trackColor)
+                fraction?.let { drawThermometerFill(it, color) }
             }
         }
     }

@@ -39,9 +39,9 @@ import com.garagepi.telemetry.ui.theme.ChargeGreen
 import com.garagepi.telemetry.ui.theme.DischargeRed
 
 /**
- * Full-screen DC fast-charge view. Opened automatically when [ObdLoggingState.fastCharging]
- * becomes true. Charts cover this session at the faster charge poll rate; hide the
- * bottom nav while shown.
+ * Full-screen DC fast-charge view. Opened from the Live tab Charging button, the same
+ * way Car mode is. Charts cover this logging session at the faster charge poll rate;
+ * hide the bottom nav while shown.
  */
 @Composable
 fun ChargeScreen(onDismiss: () -> Unit) {

@@ -74,7 +74,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         _tiles.value = updated
     }
 
-    fun fieldFor(pid: String): TelemetryField? = TelemetryFields.bySelectablePid(pid)
+    fun fieldFor(pid: String): TelemetryField? = TelemetryFields.byAnyPid(pid)
 
     @SuppressLint("MissingPermission")
     private fun readSavedDevice(): SavedDevice? {

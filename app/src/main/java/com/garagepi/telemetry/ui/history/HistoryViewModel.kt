@@ -34,6 +34,7 @@ class HistoryViewModel(application: Application) : AndroidViewModel(application)
     private val historyPids: List<String> = (
         TelemetryFields.CHART_FIELDS.map { it.pid } + listOf(
             TelemetryFields.HV_SOC.pid,
+            // Still needed for TripSummary energy even though pack power is no longer charted.
             TelemetryFields.PACK_POWER.pid,
             TelemetryFields.ODOMETER.pid,
         )

@@ -11,8 +11,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -20,7 +18,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.garagepi.telemetry.service.ObdLoggingState
 import com.garagepi.telemetry.ui.charge.ChargeScreen
 import com.garagepi.telemetry.ui.cardash.CarDashScreen
 import com.garagepi.telemetry.ui.dashboard.DashboardScreen
@@ -51,18 +48,8 @@ fun GarageNavHost() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
-    val logging by ObdLoggingState.state.collectAsState()
     val inFullScreen = currentDestination?.route == ROUTE_CAR_DASH ||
         currentDestination?.route == ROUTE_CHARGE
-
-    LaunchedEffect(logging.fastCharging) {
-        val onCharge = navController.currentDestination?.route == ROUTE_CHARGE
-        if (logging.fastCharging && !onCharge) {
-            navController.navigate(ROUTE_CHARGE) { launchSingleTop = true }
-        } else if (!logging.fastCharging && onCharge) {
-            navController.popBackStack()
-        }
-    }
 
     Scaffold(
         bottomBar = {
@@ -96,7 +83,10 @@ fun GarageNavHost() {
             modifier = Modifier.padding(padding),
         ) {
             composable(ROUTE_DASHBOARD) {
-                DashboardScreen(onOpenCarDash = { navController.navigate(ROUTE_CAR_DASH) })
+                DashboardScreen(
+                    onOpenCarDash = { navController.navigate(ROUTE_CAR_DASH) },
+                    onOpenCharge = { navController.navigate(ROUTE_CHARGE) },
+                )
             }
             composable(ROUTE_HISTORY) { HistoryScreen() }
             composable(ROUTE_SETTINGS) { SettingsScreen() }

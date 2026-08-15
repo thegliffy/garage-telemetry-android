@@ -55,6 +55,7 @@ class TelemetryFieldTest {
             TelemetryFields.TIRE_FL,
             TelemetryFields.TIRE_FL_TEMP,
             TelemetryFields.MOTOR_RPM_FRONT,
+            TelemetryFields.OUTDOOR_TEMP,
         ).forEach {
             assertNotNull("${it.pid} anchors a tile and must be selectable",
                 TelemetryFields.bySelectablePid(it.pid))
@@ -63,10 +64,25 @@ class TelemetryFieldTest {
             TelemetryFields.TIRE_FR, TelemetryFields.TIRE_RL, TelemetryFields.TIRE_RR,
             TelemetryFields.TIRE_FR_TEMP, TelemetryFields.TIRE_RL_TEMP, TelemetryFields.TIRE_RR_TEMP,
             TelemetryFields.MOTOR_RPM_REAR,
+            TelemetryFields.INDOOR_TEMP,
         ).forEach {
             assertEquals("${it.pid} is shown by its anchor and should not be listed separately",
                 null, TelemetryFields.bySelectablePid(it.pid))
         }
+    }
+
+    @Test
+    fun `history drops pack power and battery health charts`() {
+        val single = TelemetryFields.HISTORY_SINGLE_CHARTS.map { it.pid }.toSet()
+        val allCharts = TelemetryFields.CHART_FIELDS.map { it.pid }.toSet()
+        assertTrue(TelemetryFields.PACK_CURRENT.pid in single)
+        assertTrue(TelemetryFields.PACK_POWER.pid !in single)
+        assertTrue(TelemetryFields.PACK_POWER.pid !in allCharts)
+        assertTrue(TelemetryFields.HV_SOH.pid !in allCharts)
+        assertTrue(TelemetryFields.BATT_TEMP.pid in allCharts)
+        assertTrue(TelemetryFields.BATT_TEMP_MIN.pid in allCharts)
+        assertTrue(TelemetryFields.MOTOR_RPM_FRONT.pid in allCharts)
+        assertTrue(TelemetryFields.MOTOR_RPM_REAR.pid in allCharts)
     }
 
     @Test

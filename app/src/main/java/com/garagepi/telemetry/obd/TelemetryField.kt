@@ -149,17 +149,14 @@ object TelemetryFields {
     val DASHBOARD_FIELDS: List<TelemetryField> =
         listOf(SPEED, HV_SOC, PACK_POWER, PACK_CURRENT, PACK_VOLTAGE, BATT_TEMP, AUX_VOLTAGE)
 
-    /** The four that fit an Android Auto PaneTemplate, most useful while driving first. */
-    val CAR_FIELDS: List<TelemetryField> = listOf(SPEED, HV_SOC, PACK_POWER, BATT_TEMP)
-
     /**
      * Fields offerable as a dashboard tile — everything that actually produces readings.
      *
      * `AUX_SOC` is deliberately absent: its offset was wrong and it is no longer decoded,
-     * so offering it would give a tile that never fills. The individual tire corners and
-     * the rear motor are absent too — they are still decoded, stored and charted, but
-     * their anchors ([TIRE_FL], [TIRE_FL_TEMP], [MOTOR_RPM_FRONT]) show all of them in one
-     * tile, and listing them separately would be eleven near-identical picker entries.
+     * so offering it would give a tile that never fills. The individual tire corners,
+     * rear motor, and cabin temp are absent too — they are still decoded, stored and
+     * charted, but their anchors ([TIRE_FL], [TIRE_FL_TEMP], [MOTOR_RPM_FRONT],
+     * [OUTDOOR_TEMP]) show all of them in one tile.
      */
     val SELECTABLE: List<TelemetryField> = listOf(
         // Most useful while driving, first — this order is also the default tile layout.
@@ -180,7 +177,6 @@ object TelemetryFields {
         HV_SOC_DISPLAY,
         HV_SOH,
         HEATER_TEMP,
-        INDOOR_TEMP,
         TIRE_FL_TEMP,
         MOTOR_RPM_FRONT,
         MAX_POWER,
@@ -200,23 +196,25 @@ object TelemetryFields {
 
     fun bySelectablePid(pid: String): TelemetryField? = SELECTABLE.firstOrNull { it.pid == pid }
 
-    /** Everything worth graphing over a drive — a superset of the dashboard tiles. */
-    val CHART_FIELDS: List<TelemetryField> = listOf(
+    /** Single-series history charts. Dual traces (battery temps, motors) are wired in HistoryScreen. */
+    val HISTORY_SINGLE_CHARTS: List<TelemetryField> = listOf(
         SPEED,
         EFF_NOW,
         HV_SOC,
         HV_SOC_DISPLAY,
-        PACK_POWER,
         PACK_CURRENT,
         PACK_VOLTAGE,
         REMAINING_ENERGY,
-        BATT_TEMP,
-        BATT_TEMP_MIN,
         OUTDOOR_TEMP,
         AUX_VOLTAGE,
-        MOTOR_RPM_REAR,
+    )
+
+    /** Every pid the history screen needs, including dual-chart siblings. */
+    val CHART_FIELDS: List<TelemetryField> = HISTORY_SINGLE_CHARTS + listOf(
+        BATT_TEMP,
+        BATT_TEMP_MIN,
         MOTOR_RPM_FRONT,
-        HV_SOH,
+        MOTOR_RPM_REAR,
     )
 
     /**
@@ -225,10 +223,10 @@ object TelemetryFields {
      * added to any of them is covered here automatically.
      */
     val ALL: List<TelemetryField> = (
-        SELECTABLE + CHART_FIELDS + CAR_FIELDS + DASHBOARD_FIELDS + listOf(
+        SELECTABLE + CHART_FIELDS + DASHBOARD_FIELDS + listOf(
             TIRE_FR, TIRE_RL, TIRE_RR,
             TIRE_FR_TEMP, TIRE_RL_TEMP, TIRE_RR_TEMP,
-            MOTOR_RPM_REAR, AUX_SOC, SPEED_CLUSTER,
+            MOTOR_RPM_REAR, AUX_SOC, SPEED_CLUSTER, INDOOR_TEMP,
         )
         ).distinctBy { it.pid }
 

@@ -61,8 +61,11 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
             val response = client.createSession(
                 SessionCreateRequest(
                     source = "android",
-                    kind = "trip",
-                    meta = mapOf("local_trip_id" to trip.id.toString()),
+                    kind = if (trip.isCharge) "other" else "trip",
+                    meta = buildMap {
+                        put("local_trip_id", trip.id.toString())
+                        if (trip.isCharge) put("session_kind", TripSessionEntity.CHARGE)
+                    },
                 ),
             )
             // Persist before readings: a kill between HTTP 200 and this write used to

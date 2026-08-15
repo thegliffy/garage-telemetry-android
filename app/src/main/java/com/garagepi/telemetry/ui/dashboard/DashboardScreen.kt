@@ -56,6 +56,7 @@ import com.garagepi.telemetry.ui.missingPermissions
 fun DashboardScreen(
     viewModel: DashboardViewModel = viewModel(),
     onOpenCarDash: () -> Unit = {},
+    onOpenCharge: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val tiles by viewModel.tiles.collectAsState()
@@ -100,7 +101,10 @@ fun DashboardScreen(
                 text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineMedium,
             )
-            OutlinedButton(onClick = onOpenCarDash) { Text("Car mode") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onOpenCarDash) { Text("Car mode") }
+                OutlinedButton(onClick = onOpenCharge) { Text("Charging") }
+            }
         }
 
         ConnectionControls(

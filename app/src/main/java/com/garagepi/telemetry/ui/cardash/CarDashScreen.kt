@@ -7,12 +7,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -23,7 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,19 +34,18 @@ import com.garagepi.telemetry.sync.AppSettings
 import com.garagepi.telemetry.ui.gauge.FieldStyles
 import com.garagepi.telemetry.ui.gauge.TileContent
 
+private const val CAR_COLUMNS = 4
+
 /**
  * Full-screen readout for a phone mounted in the car.
  *
- * Unlike the Android Auto surface this has no template restrictions, so it updates at the
- * full sample rate and can be as large and high-contrast as it likes. Locks to landscape
- * and holds the screen awake for as long as it is shown.
+ * Locks to landscape and holds the screen awake. The grid is a non-scrolling 4-column
+ * layout that fills the viewport so every configured tile stays on one screen.
  */
 @Composable
 fun CarDashScreen() {
     val state by ObdLoggingState.state.collectAsState()
     val context = LocalContext.current
-    // Same layout the user configured on the phone dashboard, so car mode is not a second
-    // thing to set up.
     val tiles = remember { AppSettings(context).dashboardTiles.filterNot { it.isEmpty } }
     val fahrenheit = remember { AppSettings(context).temperatureInFahrenheit }
     val displayValues = remember(state.latestValues, fahrenheit) {
@@ -60,8 +58,6 @@ fun CarDashScreen() {
         activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
-            // Both must be undone, or the rest of the app inherits a landscape lock and a
-            // screen that never sleeps.
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             previousOrientation?.let { activity.requestedOrientation = it }
         }
@@ -70,10 +66,8 @@ fun CarDashScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            // Deliberately black rather than the theme surface: less glare at night and
-            // far better contrast in direct sun.
             .background(Color.Black)
-            .padding(12.dp),
+            .padding(8.dp),
     ) {
         if (state.connectionState !is ConnectionState.Connected) {
             Text(
@@ -90,32 +84,58 @@ fun CarDashScreen() {
             return@Box
         }
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+        if (tiles.isEmpty()) {
+            Text(
+                text = "No tiles configured.\nSet them on the Live tab.",
+                color = Color.White,
+                fontSize = 24.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.align(Alignment.Center),
+            )
+            return@Box
+        }
+
+        val rows = tiles.chunked(CAR_COLUMNS)
+        Column(
             modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(tiles) { tile ->
-                val field = TelemetryFields.bySelectablePid(tile.pid)
-                    ?.let { Units.forDisplay(it, fahrenheit) }
-                if (field != null) {
-                    // Same gauges as the phone dashboard, but with colors pinned for the
-                    // black background — the theme's onSurface would be near-invisible.
-                    TileContent(
-                        field = field,
-                        style = FieldStyles.resolve(field, tile.style),
-                        values = displayValues,
-                        compact = false,
-                        textColor = Color.White,
-                        trackColor = Color(0xFF303030),
-                        accentColor = Color(0xFF64B5F6),
-                    )
+            rows.forEach { rowTiles ->
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    rowTiles.forEach { tile ->
+                        val field = TelemetryFields.byAnyPid(tile.pid)
+                            ?.let { Units.forDisplay(it, fahrenheit) }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .background(Color(0xFF1A1A1A))
+                                .padding(8.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (field != null) {
+                                TileContent(
+                                    field = field,
+                                    style = FieldStyles.resolve(field, tile.style),
+                                    values = displayValues,
+                                    compact = true,
+                                    textColor = Color.White,
+                                    trackColor = Color(0xFF303030),
+                                    accentColor = Color(0xFF64B5F6),
+                                )
+                            }
+                        }
+                    }
+                    repeat(CAR_COLUMNS - rowTiles.size) {
+                        Spacer(Modifier.weight(1f).fillMaxHeight())
+                    }
                 }
             }
         }
     }
 }
-
-// BigTile removed: car mode now renders through the shared TileContent, so gauges and the
-// number style stay consistent between here and the phone dashboard.

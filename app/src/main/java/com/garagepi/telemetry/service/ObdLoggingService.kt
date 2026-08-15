@@ -140,7 +140,6 @@ class ObdLoggingService : Service() {
             session.initialize()
             obdSession = session
 
-            tripId = db.tripSessionDao().insert(TripSessionEntity(startedAt = System.currentTimeMillis()))
             settings.lastDeviceAddress = address
             efficiency.reset()
             chargeDetector.reset()
@@ -149,7 +148,7 @@ class ObdLoggingService : Service() {
             ObdLoggingState.setConnection(ConnectionState.Connected(label))
             updateNotification("Logging from $label", null)
 
-            pollUntilPowerOff(session, tripId, label)
+            tripId = pollUntilPowerOff(session, label)
             ObdLoggingState.setConnection(ConnectionState.Disconnected)
         } catch (e: CancellationException) {
             // User pressed Stop. Not an error state — fall through to cleanup.
@@ -172,9 +171,15 @@ class ObdLoggingService : Service() {
         }
     }
 
-    private suspend fun pollUntilPowerOff(session: ObdSession, tripId: Long, label: String) {
+    /**
+     * Opens a Drive or Charge session on first persist, and splits whenever
+     * [FastChargeDetector] flips so history keeps them as separate records.
+     */
+    private suspend fun pollUntilPowerOff(session: ObdSession, label: String): Long? {
         var emptyPolls = 0
         var lastPersistAt = 0L
+        var tripId: Long? = null
+        var tripIsCharge = false
 
         while (currentCoroutineContext().isActive) {
             val result = session.pollOnce(chargeFocus = chargeDetector.active)
@@ -185,7 +190,7 @@ class ObdLoggingService : Service() {
                 emptyPolls++
                 if (emptyPolls >= EMPTY_POLLS_BEFORE_STOP) {
                     Log.i(TAG, "no data for $emptyPolls consecutive polls — treating as power off")
-                    return
+                    return tripId
                 }
             } else {
                 emptyPolls = 0
@@ -225,14 +230,32 @@ class ObdLoggingService : Service() {
                         ),
                     )
                 }
+
+                val wantCharge = chargeDetector.active
+                if (tripId != null && tripIsCharge != wantCharge) {
+                    endTrip(tripId)
+                    efficiency.reset()
+                    tripId = null
+                    lastPersistAt = 0L
+                }
+
                 // Persist derived efficiency with the poll row so history charts and sync
                 // see EFF_SESSION / EFF_10S — they are UI-only if left out of insertAll.
                 val pollTs = readings.maxOf { it.timestampMs }
                 val granularity = settings.loggingGranularity
-                if (chargeDetector.active || granularity.shouldPersist(pollTs, lastPersistAt)) {
+                if (wantCharge || granularity.shouldPersist(pollTs, lastPersistAt)) {
+                    val currentTripId = tripId ?: db.tripSessionDao().insert(
+                        TripSessionEntity(
+                            startedAt = System.currentTimeMillis(),
+                            kind = if (wantCharge) TripSessionEntity.CHARGE else TripSessionEntity.DRIVE,
+                        ),
+                    ).also {
+                        tripId = it
+                        tripIsCharge = wantCharge
+                    }
                     val toStore = readings.map {
                         ReadingEntity(
-                            tripSessionId = tripId,
+                            tripSessionId = currentTripId,
                             ts = it.timestampMs,
                             pid = it.pid,
                             value = it.value,
@@ -241,7 +264,7 @@ class ObdLoggingService : Service() {
                     values[TelemetryFields.EFF_SESSION.pid]?.let { v ->
                         toStore.add(
                             ReadingEntity(
-                                tripSessionId = tripId,
+                                tripSessionId = currentTripId,
                                 ts = pollTs,
                                 pid = TelemetryFields.EFF_SESSION.pid,
                                 value = v,
@@ -251,7 +274,7 @@ class ObdLoggingService : Service() {
                     values[TelemetryFields.EFF_NOW.pid]?.let { v ->
                         toStore.add(
                             ReadingEntity(
-                                tripSessionId = tripId,
+                                tripSessionId = currentTripId,
                                 ts = pollTs,
                                 pid = TelemetryFields.EFF_NOW.pid,
                                 value = v,
@@ -261,7 +284,7 @@ class ObdLoggingService : Service() {
                     values[TelemetryFields.BATT_HEATER.pid]?.let { v ->
                         toStore.add(
                             ReadingEntity(
-                                tripSessionId = tripId,
+                                tripSessionId = currentTripId,
                                 ts = pollTs,
                                 pid = TelemetryFields.BATT_HEATER.pid,
                                 value = v,
@@ -276,6 +299,7 @@ class ObdLoggingService : Service() {
 
             delay(if (chargeDetector.active) CHARGE_POLL_INTERVAL_MS else POLL_INTERVAL_MS)
         }
+        return tripId
     }
 
     /** Stamps endedAt so the session is a complete drive, then nudges the uploader. */
