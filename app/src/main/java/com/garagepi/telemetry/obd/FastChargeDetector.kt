@@ -1,10 +1,11 @@
 package com.garagepi.telemetry.obd
 
 /**
- * Enters DC-fast-charge UI when the CCS plug bit is set, or pack power is drawing at
- * DC rates (below ~−15 kW; L2 AC tops out near 11 kW).
+ * True while the car is plugged in (CCS or AC). Used to start a Charge history
+ * session and to treat this as a charging stop.
  *
- * Streaks avoid a single noisy frame flashing the full-screen charge view.
+ * Pack power is **not** evidence: Ioniq regen routinely exceeds −15 kW and must stay
+ * on the Drive record. Streaks ignore a single noisy plug bit.
  */
 class FastChargeDetector(
     private val enterStreak: Int = 2,
@@ -36,15 +37,14 @@ class FastChargeDetector(
     }
 
     companion object {
-        /** kW into the pack at or above this is DCFC, not Level 2. Sign is discharge-positive. */
-        const val DC_POWER_KW = -15.0
-
         fun evidence(values: Map<String, Double>): Boolean {
             val ccs = (values[TelemetryFields.CCS_PLUG.pid] ?: 0.0) >= 0.5
-            val power = values[TelemetryFields.PACK_POWER.pid]
-            val dcPower = power != null && power <= DC_POWER_KW
-            return ccs || dcPower
+            val ac = (values[TelemetryFields.AC_PLUG.pid] ?: 0.0) >= 0.5
+            return ccs || ac
         }
+
+        fun dcPlug(values: Map<String, Double>): Boolean =
+            (values[TelemetryFields.CCS_PLUG.pid] ?: 0.0) >= 0.5
 
         /**
          * No heater-on bit in the Esprit1st list — only heater element temperature

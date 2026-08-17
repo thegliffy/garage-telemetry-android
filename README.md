@@ -40,13 +40,13 @@ checked against frames from the car.
 
 | | |
 | --- | --- |
-| **Live** | Eight configurable tiles (2×4 portrait, 4×2 landscape). Gauges, numbers, power arcs, dual cabin/outside thermometers, tire corners, motors. |
+| **Live** | Eight configurable tiles (2×4 portrait, 4×2 landscape). Gauges, numbers, power arcs, Climate (cabin + outside), tire corners, motors. |
 | **Car mode** | Same tiles full-screen landscape, screen held awake, laid out so they fit without scrolling. |
 | **Charging** | DC fast-charge charts: SOC, kW, pack voltage, battery max/min. |
 | **History** | Each session is prefixed Drive or Charge. Summary plus charts (temps and motors overlaid). |
 
-Plug into CCS (or pack power at DC rates) and logging splits a **Charge** record off the
-current **Drive**. Unplug and the next stretch is a Drive again.
+Plug in AC or CCS and logging splits a **Charge** record off the current **Drive**.
+Regen does not start a Charge session. Unplug and the next stretch is a Drive again.
 
 ## Install
 
@@ -67,8 +67,8 @@ when the car is parked. Shared contract: [`garage-telemetry-api`](https://github
 ## Tiles
 
 Tap a tile to choose the signal and how it is drawn: number, arc, bidirectional power
-arc, thermometer, battery hi/low, four-corner tires, front/rear motors, or cabin and
-outside on one tile.
+arc, thermometer, battery hi/low, four-corner tires, front/rear motors, or Climate
+(cabin and outside on one standard-height tile).
 
 Speed and odometer offsets shipped calibrated. The Calibrate tab is hidden; restore
 `ROUTE_CALIBRATION` in `ui/GarageNavHost.kt` if a decode ever goes wrong.

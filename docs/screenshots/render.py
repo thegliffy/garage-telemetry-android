@@ -127,7 +127,7 @@ def live() -> Image.Image:
         ("Efficiency (trip)", "3.8", "mi/kWh", "num", 0.48, GREEN),
         ("Energy Remaining", "51", "kWh", "arc", 0.66, GREEN),
         ("Battery Temp", "26 – 29°C", "spread 3°C", "batt", 0.62, RED),
-        ("Cabin / Outside", None, None, "climate", 0.0, GREEN),
+        ("Climate", "72 / 64°F", None, "climate", 0.0, GREEN),
     ]
     gap, pad = 12, 16
     cols, rows = 2, 4
@@ -165,12 +165,13 @@ def live() -> Image.Image:
             d.text((cx, y0 + th - 38), val, fill=ON, font=font(18, True), anchor="mm")
             d.text((cx, y0 + th - 18), unit, fill=ON_VAR, font=font(11), anchor="mm")
         elif kind == "climate":
-            d.text((x0 + 16, y0 + 42), "Cabin", fill=ON_VAR, font=font(11))
-            d.text((x0 + tw - 16, y0 + 42), "72°F", fill=ORANGE, font=font(14, True), anchor="ra")
-            thermo(d, x0 + 16, y0 + 58, x0 + tw - 16, y0 + 70, 0.68, ORANGE)
-            d.text((x0 + 16, y0 + 86), "Outside", fill=ON_VAR, font=font(11))
-            d.text((x0 + tw - 16, y0 + 86), "64°F", fill=BLUE, font=font(14, True), anchor="ra")
-            thermo(d, x0 + 16, y0 + 102, x0 + tw - 16, y0 + 114, 0.52, BLUE)
+            bar_y = y0 + 58
+            thermo(d, x0 + 18, bar_y, x0 + tw - 18, bar_y + 16, 0.0, TRACK)
+            cab = x0 + 18 + (tw - 36) * 0.68
+            out = x0 + 18 + (tw - 36) * 0.52
+            d.rectangle((cab - 2, bar_y - 2, cab + 2, bar_y + 18), fill=ORANGE)
+            d.rectangle((out - 2, bar_y - 2, out + 2, bar_y + 18), fill=BLUE)
+            d.text((cx, y0 + th - 28), val, fill=ON, font=font(18, True), anchor="mm")
 
     nav_bar(img, "live")
     return img.convert("RGB")
@@ -323,7 +324,7 @@ def car_mode() -> Image.Image:
         ("Energy Remaining", "47", "arc", 0.61),
         ("Battery Temp", "28°", "batt", 0),
         ("Tires", "42  42\n41  41", "tires", 0),
-        ("Cabin / Outside", "", "climate", 0),
+        ("Climate", "72 / 64°F", "climate", 0),
     ]
     pad, gap = 16, 10
     cols, rows = 4, 2
@@ -354,10 +355,7 @@ def car_mode() -> Image.Image:
             d.multiline_text((cx, cy), val, fill=(255, 255, 255), font=font(22, True), anchor="mm", align="center", spacing=8)
             d.text((cx, y0 + th - 18), "psi  FL FR / RL RR", fill=(140, 140, 140), font=font(10), anchor="mb")
         elif kind == "climate":
-            d.text((x0 + 16, y0 + 48), "Cabin  72°F", fill=ORANGE, font=font(14, True))
-            thermo(d, x0 + 16, y0 + 68, x0 + tw - 16, y0 + 80, 0.68, ORANGE)
-            d.text((x0 + 16, y0 + 100), "Outside  64°F", fill=(100, 181, 246), font=font(14, True))
-            thermo(d, x0 + 16, y0 + 120, x0 + tw - 16, y0 + 132, 0.52, (100, 181, 246))
+            d.text((cx, cy), val, fill=(255, 255, 255), font=font(22, True), anchor="mm")
     return img.convert("RGB")
 
 

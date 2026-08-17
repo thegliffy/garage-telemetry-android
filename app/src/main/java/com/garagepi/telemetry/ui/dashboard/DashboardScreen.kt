@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -167,7 +167,6 @@ private fun ConnectionControls(
                 when {
                     !hasPermission ->
                         Button(onClick = onRequestPermission) { Text("Grant Bluetooth permission") }
-                    // Say where to fix it rather than showing a button that cannot work.
                     savedDevice == null -> Text(
                         "No adapter selected — choose one in Settings.",
                         style = MaterialTheme.typography.bodyLarge,
@@ -197,7 +196,7 @@ private fun StatCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = if (compact) 84.dp else 118.dp)
+            .height(if (compact) 88.dp else 124.dp)
             .clickable(onClick = onClick),
     ) {
         Column(

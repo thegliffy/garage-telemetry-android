@@ -52,7 +52,7 @@ private const val NOTIFICATION_ID = 1
  */
 private const val POLL_INTERVAL_MS = 200L
 
-/** Extra wait while DCFC so 220101/220105 run as fast as the adapter allows. */
+/** Extra wait while plugged in so 220101/220105 run as fast as the adapter allows. */
 private const val CHARGE_POLL_INTERVAL_MS = 50L
 
 /**
@@ -172,8 +172,9 @@ class ObdLoggingService : Service() {
     }
 
     /**
-     * Opens a Drive or Charge session on first persist, and splits whenever
-     * [FastChargeDetector] flips so history keeps them as separate records.
+     * Opens a Drive or Charge session on first persist, and splits whenever the
+     * car is plugged in or unplugged so history keeps them as separate records.
+     * Regen is not a Charge session — only AC or CCS plug bits.
      */
     private suspend fun pollUntilPowerOff(session: ObdSession, label: String): Long? {
         var emptyPolls = 0
@@ -224,13 +225,14 @@ class ObdLoggingService : Service() {
                             packVoltage = values[TelemetryFields.PACK_VOLTAGE.pid],
                             battTempMaxC = values[TelemetryFields.BATT_TEMP.pid],
                             battTempMinC = values[TelemetryFields.BATT_TEMP_MIN.pid],
-                            dcCharging = (values[TelemetryFields.CCS_PLUG.pid] ?: 0.0) >= 0.5
-                                || (power != null && power <= FastChargeDetector.DC_POWER_KW),
+                            dcCharging = FastChargeDetector.dcPlug(values),
                             heaterOn = heaterOn,
                         ),
                     )
                 }
 
+                // Split Drive ↔ Charge on plug in/out. Regen is not Charge — the detector
+                // only looks at AC/CCS plug bits, not pack power.
                 val wantCharge = chargeDetector.active
                 if (tripId != null && tripIsCharge != wantCharge) {
                     endTrip(tripId)

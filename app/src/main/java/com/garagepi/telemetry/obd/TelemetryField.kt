@@ -113,7 +113,7 @@ object TelemetryFields {
     val CED = TelemetryField("CED_KWH", "Lifetime Used", "kWh", decimals = 0)
     val OPTIME = TelemetryField("OPTIME_H", "Operating Time", "h", decimals = 0)
     val OUTDOOR_TEMP = TelemetryField(
-        "OUTDOOR_TEMP_C", "Outside Temp", "°C", min = -40.0, max = 60.0, decimals = 0,
+        "OUTDOOR_TEMP_C", "Climate", "°C", min = -40.0, max = 60.0, decimals = 0,
     )
     val INDOOR_TEMP = TelemetryField(
         "INDOOR_TEMP_C", "Cabin Temp", "°C", min = -40.0, max = 60.0, decimals = 0,
@@ -156,7 +156,7 @@ object TelemetryFields {
      * so offering it would give a tile that never fills. The individual tire corners,
      * rear motor, and cabin temp are absent too — they are still decoded, stored and
      * charted, but their anchors ([TIRE_FL], [TIRE_FL_TEMP], [MOTOR_RPM_FRONT],
-     * [OUTDOOR_TEMP]) show all of them in one tile.
+     * [OUTDOOR_TEMP] as Climate) show all of them in one tile.
      */
     val SELECTABLE: List<TelemetryField> = listOf(
         // Most useful while driving, first — this order is also the default tile layout.

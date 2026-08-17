@@ -55,7 +55,7 @@ fun TileContent(
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
-            text = if (style == TileStyle.CLIMATE_PAIR) "Cabin / Outside" else field.label,
+            text = field.label,
             style = MaterialTheme.typography.labelSmall,
             color = textColor.copy(alpha = 0.7f),
             maxLines = 1,
@@ -197,43 +197,42 @@ private fun ClimatePair(
     textColor: Color,
     trackColor: Color,
 ) {
-    val rows = listOf(
-        Triple("Cabin", values[TelemetryFields.INDOOR_TEMP.pid], CabinOrange),
-        Triple("Outside", values[TelemetryFields.OUTDOOR_TEMP.pid], BatteryTempLowBlue),
-    )
-    val barHeight = if (compact) 22.dp else 32.dp
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 6.dp),
-    ) {
-        rows.forEach { (tag, value, color) ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = tag,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = textColor.copy(alpha = 0.6f),
-                )
-                Text(
-                    text = value?.let { "${format(it, field.decimals)}${field.unit}" } ?: "--",
-                    style = if (compact) {
-                        MaterialTheme.typography.bodyLarge
-                    } else {
-                        MaterialTheme.typography.titleMedium
-                    },
-                    fontWeight = FontWeight.SemiBold,
-                    color = color,
-                    maxLines = 1,
-                )
-            }
-            Canvas(modifier = Modifier.fillMaxWidth().height(barHeight)) {
-                val fraction = value?.let { fractionOf(it, field.min, field.max) }
-                drawThermometerTrack(trackColor)
-                fraction?.let { drawThermometerFill(it, color) }
-            }
+    val cabin = values[TelemetryFields.INDOOR_TEMP.pid]
+    val outside = values[TelemetryFields.OUTDOOR_TEMP.pid]
+    val cabinFrac = cabin?.let { fractionOf(it, field.min, field.max) }
+    val outsideFrac = outside?.let { fractionOf(it, field.min, field.max) }
+
+    val valueStyle =
+        if (compact) MaterialTheme.typography.bodyLarge else MaterialTheme.typography.titleLarge
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(if (compact) 30.dp else 42.dp)
+                .padding(horizontal = 4.dp),
+        ) {
+            val barHeight = 10.dp.toPx()
+            val top = (size.height - barHeight) / 2f
+            drawRect(color = trackColor, topLeft = Offset(0f, top), size = Size(size.width, barHeight))
+            cabinFrac?.let { drawMarker(it, CabinOrange, barHeight, top) }
+            outsideFrac?.let { drawMarker(it, BatteryTempLowBlue, barHeight, top) }
+        }
+        // Same height budget as other tiles: no extra caption. Color carries cabin vs outside.
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
+            Text(
+                text = cabin?.let { format(it, field.decimals) } ?: "--",
+                style = valueStyle,
+                color = CabinOrange,
+                maxLines = 1,
+            )
+            Text(text = " / ", style = valueStyle, color = textColor.copy(alpha = 0.55f), maxLines = 1)
+            Text(
+                text = outside?.let { format(it, field.decimals) } ?: "--",
+                style = valueStyle,
+                color = BatteryTempLowBlue,
+                maxLines = 1,
+            )
+            Text(text = field.unit, style = valueStyle, color = textColor.copy(alpha = 0.7f), maxLines = 1)
         }
     }
 }

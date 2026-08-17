@@ -15,16 +15,23 @@ class FastChargeDetectorTest {
     }
 
     @Test
-    fun `high charge power without ccs still counts as dc`() {
+    fun `ac plug starts a charging session`() {
         val d = FastChargeDetector(enterStreak = 1, exitStreak = 1)
-        d.update(mapOf(TelemetryFields.PACK_POWER.pid to -40.0))
+        d.update(mapOf(TelemetryFields.AC_PLUG.pid to 1.0))
         assertTrue(d.active)
     }
 
     @Test
-    fun `ac-rate power without ccs does not enter`() {
+    fun `engine regen does not start a charging session`() {
         val d = FastChargeDetector(enterStreak = 1, exitStreak = 1)
-        d.update(mapOf(TelemetryFields.PACK_POWER.pid to -8.0))
+        d.update(mapOf(TelemetryFields.PACK_POWER.pid to -40.0))
+        assertFalse(d.active)
+        d.update(
+            mapOf(
+                TelemetryFields.PACK_POWER.pid to -80.0,
+                TelemetryFields.HV_CHARGING.pid to 1.0,
+            ),
+        )
         assertFalse(d.active)
     }
 

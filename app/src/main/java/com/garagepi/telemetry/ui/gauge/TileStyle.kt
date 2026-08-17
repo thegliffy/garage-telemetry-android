@@ -16,8 +16,8 @@ enum class TileStyle(val label: String) {
     /** Front above rear, each with its own bidirectional bar. */
     MOTOR_PAIR("Front/rear"),
 
-    /** Cabin and outside, each with its own thermometer bar. */
-    CLIMATE_PAIR("Cabin/outside"),
+    /** Cabin and outside on one standard-height tile. */
+    CLIMATE_PAIR("Climate"),
     ;
 
     companion object {
